@@ -9,10 +9,9 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12181e;--card:#1a232b;--tx:#e8edf2;--mu:#98a5b1;--bd:#2b3743;--ac:#5cc1d6;--on:#06222a;--hi:#f0b429;--dg:#ff8a80}}
 :root[data-theme="dark"]{--bg:#12181e;--card:#1a232b;--tx:#e8edf2;--mu:#98a5b1;--bd:#2b3743;--ac:#5cc1d6;--on:#06222a;--hi:#f0b429;--dg:#ff8a80}
 *,*::before,*::after{box-sizing:inherit}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:760px;margin:0 auto;padding:14px}
-h1{font-size:22px;margin:4px 0 12px;letter-spacing:-.01em}
+h1{font-size:22px;margin:4px 0 12px}
 .tabs{display:flex;gap:6px;margin-bottom:12px}
 .tabs button{flex:1;padding:11px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:8px;font:inherit;font-weight:600}
 .tabs button[aria-selected="true"]{background:var(--ac);color:var(--on);border-color:var(--ac)}
@@ -27,15 +26,14 @@ video{width:100%;height:100%;object-fit:cover;display:block}
 .frame{position:absolute;inset:22% 22%;border:3px solid var(--hi);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .stat{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
-.stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.stat b{display:block;font-size:20px}
 .wrap{overflow-x:auto;border:1px solid var(--bd);border-radius:10px;background:var(--card)}
 table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
 th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
-td.d{white-space:normal;min-width:140px}
 th{background:var(--bg);font-weight:600;position:sticky;top:0}
-td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.n,th.n{text-align:right}
 tbody tr{cursor:pointer}
-.empty{text-align:center;color:var(--mu);padding:24px;white-space:normal}
+.empty{text-align:center;color:var(--mu);padding:24px}
 input{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
 label{display:block;font-size:13px;color:var(--mu);margin:8px 0 3px}
 dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);width:min(94vw,460px);padding:16px}
@@ -56,17 +54,13 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <section id="p1">
 <div class="card">
 <div class="row">
-<button class="btn" id="camBtn">Start camera</button>
-<button class="btn alt" id="photoBtn">Take photo to scan</button>
-<button class="btn alt" id="addBtn">Add item by hand</button>
+<button class="btn" id="camBtn" type="button">Start camera</button>
+<button class="btn alt" id="photoBtn" type="button">Take photo to scan</button>
+<button class="btn alt" id="addBtn" type="button">Add item by hand</button>
 </div>
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
-<div id="msg" class="mu" role="status"></div>
+<div id="msg" class="mu" role="status">App loaded successfully. Ready.</div>
 <div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="frame"></div></div>
-</div>
-<div class="card mu">
-<b style="color:var(--tx)">What the QR code can hold</b><br>
-Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON with those names, or just the part number. A scan of a part number already in your list adds to its quantity[cite: 1].
 </div>
 </section>
 
@@ -78,7 +72,7 @@ Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON 
 </div>
 <div class="row" style="margin-bottom:10px">
 <input id="q" placeholder="Search part, description or rack" style="flex:1;min-width:180px">
-<button class="btn" id="exp">Export Excel</button>
+<button class="btn" id="exp" type="button">Export Excel</button>
 </div>
 <div class="wrap">
 <table>
@@ -86,7 +80,6 @@ Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON 
 <tbody id="rows"></tbody>
 </table>
 </div>
-<p class="mu">Tap a row to edit or delete it[cite: 1].</p>
 </section>
 </main>
 
@@ -104,16 +97,16 @@ Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON 
 <label for="fPer">Per</label><input id="fPer" list="units" autocomplete="off">
 <datalist id="units"><option value="Nos"><option value="Pcs"><option value="Set"><option value="Box"><option value="kg"><option value="Ltr"><option value="Mtr"></datalist>
 <div class="row" style="margin-top:14px">
-<button class="btn" id="save">Save</button>
-<button class="btn alt" id="cancel">Cancel</button>
-<button class="btn del" id="del" style="margin-left:auto">Delete</button>
+<button class="btn" id="save" type="button">Save</button>
+<button class="btn alt" id="cancel" type="button">Cancel</button>
+<button class="btn del" id="del" type="button" style="margin-left:auto">Delete</button>
 </div>
 </dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-try {
+window.addEventListener('DOMContentLoaded', () => {
   const $=id=>document.getElementById(id);
   const KEY='stock-scanner-items';
   let items=[];
@@ -124,7 +117,6 @@ try {
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function msg(t){$('msg').textContent=t||''}
 
-  /* tabs */
   function tab(n){
     $('p1').hidden=n!==1;$('p2').hidden=n!==2;
     $('t1').setAttribute('aria-selected',n===1);$('t2').setAttribute('aria-selected',n===2);
@@ -133,7 +125,6 @@ try {
   }
   $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
 
-  /* stock list */
   function render(){
     const f=$('q').value.trim().toLowerCase();
     let html='';
@@ -149,7 +140,6 @@ try {
   $('q').oninput=render;
   $('rows').onclick=e=>{const r=e.target.closest('tr[data-i]');if(r)openForm('edit',items[+r.dataset.i],+r.dataset.i)};
 
-  /* item form */
   let mode='',editIdx=-1,resume=false;
   function openForm(m,o,idx){
     mode=m;editIdx=idx;
@@ -187,7 +177,6 @@ try {
   };
   $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
 
-  /* QR text -> item */
   function parse(t){
     t=t.trim();
     const o={part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1};
@@ -219,7 +208,6 @@ try {
     openForm('scan',o,-1);
   }
 
-  /* decoding */
   const det='BarcodeDetector' in window?new BarcodeDetector():null;
   const cv=document.createElement('canvas');
   async function decode(src,w,h){
@@ -233,7 +221,6 @@ try {
     return null;
   }
 
-  /* camera */
   let stream=null,busy=false,raf=0,last=0;
   async function startCam(){
     if(stream)return;
@@ -243,7 +230,7 @@ try {
       $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Point the camera at a QR code.');tick();
     }catch(e){
       stream=null;
-      msg('Live camera is blocked in this view ('+((e&&e.name)||'error')+'). Tap Take photo to scan to use your phone camera instead.');
+      msg('Live camera is blocked. Tap Take photo to scan instead.');
     }
   }
   function stopCam(){
@@ -269,38 +256,28 @@ try {
     try{
       const b=await createImageBitmap(f);
       const r=await decode(b,b.width,b.height);
-      if(r){stopCam();got(r)}else msg('No QR code found in that photo. Try again with the code filling more of the frame.');
+      if(r){stopCam();got(r)}else msg('No QR code found in that photo.');
     }catch(err){msg('That image could not be read.')}
   };
 
-  /* excel export */
   $('exp').onclick=async()=>{
     if(!items.length){alert('Add at least one item before exporting.');return}
-    if(!window.XLSX){alert('The Excel library did not load. Check your connection and reload.');return}
+    if(!window.XLSX){alert('Excel library not loaded.');return}
     const rows=[['Sl. No.','Part Number','Description of Goods','HSN Code','Quantity','Rate','Per','Amount','Rack']];
     items.forEach((x,i)=>rows.push([i+1,x.part,x.desc,x.hsn,x.qty,x.rate,x.per,x.qty*x.rate,x.rack]));
     rows.push(['','','','Total',items.reduce((a,x)=>a+x.qty,0),'','',items.reduce((a,x)=>a+x.qty*x.rate,0),'']);
     const ws=XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols']=[{wch:7},{wch:18},{wch:36},{wch:12},{wch:10},{wch:10},{wch:7},{wch:12},{wch:10}];
-    const by={};
-    items.forEach(x=>{const k=x.rack||'(no rack)';by[k]=by[k]||{n:0,q:0,v:0};by[k].n++;by[k].q+=x.qty;by[k].v+=x.qty*x.rate});
-    const sm=[['Rack','Items','Total Quantity','Stock Value']];
-    Object.keys(by).sort().forEach(k=>sm.push([k,by[k].n,by[k].q,by[k].v]));
-    sm.push(['Total',items.length,items.reduce((a,x)=>a+x.qty,0),items.reduce((a,x)=>a+x.qty*x.rate,0)]);
-    const ws2=XLSX.utils.aoa_to_sheet(sm);ws2['!cols']=[{wch:16},{wch:8},{wch:15},{wch:14}];
     const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,'Stock');XLSX.utils.book_append_sheet(wb,ws2,'Summary');
+    XLSX.utils.book_append_sheet(wb,ws,'Stock');
     const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
     const name='Stock_'+new Date().toISOString().slice(0,10)+'.xlsx';
-    let dl=null;try{dl=await claude.use('downloads')}catch(e){}
-    if(!dl){const u=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);msg('Exported '+name+'.');return}
-    try{await dl.save({filename:name,data});msg('Exported '+name+'.')}
-    catch(e){if(!e||e.code!=='declined')alert('The file could not be saved ('+((e&&e.code)||'error')+').')}
+    const u=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);
+    msg('Exported '+name+'.');
   };
   render();
-} catch(err) {
-  console.error("App initialization error:", err);
-}
+});
 </script>
 </body>
 </html>
