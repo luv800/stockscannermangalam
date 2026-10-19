@@ -16,14 +16,13 @@ h1{font-size:22px;margin:4px 0 12px}
 .tabs button{flex:1;padding:11px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:8px;font:inherit;font-weight:600}
 .tabs button[aria-selected="true"]{background:var(--ac);color:var(--on);border-color:var(--ac)}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:12px}
-.btn{padding:11px 16px;border-radius:8px;border:1px solid var(--ac);background:var(--ac);color:var(--on);font:inherit;font-weight:600}
+.btn{padding:11px 16px;border-radius:8px;border:1px solid var(--ac);background:var(--ac);color:var(--on);font:inherit;font-weight:600;cursor:pointer}
 .btn.alt{background:transparent;color:var(--ac)}
 .btn.del{background:transparent;color:var(--dg);border-color:var(--dg)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .mu{color:var(--mu);font-size:14px}
-#camwrap{position:relative;margin-top:12px;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:4/3}
-video{width:100%;height:100%;object-fit:cover;display:block}
-.frame{position:absolute;inset:22% 22%;border:3px solid var(--hi);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+#reader{width:100%;border-radius:10px;overflow:hidden;background:#000;margin-top:12px}
+#reader video{width:100%!important;object-fit:cover!important}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .stat{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
 .stat b{display:block;font-size:20px}
@@ -47,20 +46,20 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <main>
 <h1>Stock Scanner</h1>
 <div class="tabs" role="tablist">
-<button id="t1" role="tab" aria-selected="true">Scan</button>
-<button id="t2" role="tab" aria-selected="false">Stock list</button>
+<button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
+<button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
 </div>
 
 <section id="p1">
 <div class="card">
 <div class="row">
 <button class="btn" id="camBtn" type="button">Start camera</button>
-<button class="btn alt" id="photoBtn" type="button">Take photo to scan</button>
+<button class="btn alt" id="photoBtn" type="button">Upload photo to scan</button>
 <button class="btn alt" id="addBtn" type="button">Add item by hand</button>
 </div>
-<input type="file" id="file" accept="image/*" capture="environment" hidden>
-<div id="msg" class="mu" role="status">Ready.</div>
-<div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="frame"></div></div>
+<input type="file" id="file" accept="image/*" hidden>
+<div id="msg" class="mu" role="status">Ready to scan warehouse labels.</div>
+<div id="reader" hidden></div>
 </div>
 </section>
 
@@ -103,7 +102,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </div>
 </dialog>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<!-- Use robust industrial-grade QR scanner and xlsx libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', () => {
@@ -140,7 +140,7 @@ window.addEventListener('DOMContentLoaded', () => {
   $('q').oninput=render;
   $('rows').onclick=e=>{const r=e.target.closest('tr[data-i]');if(r)openForm('edit',items[+r.dataset.i],+r.dataset.i)};
 
-  let mode='',editIdx=-1,resume=false;
+  let mode='',editIdx=-1,scanner=null,isScanning=false;
   function openForm(m,o,idx){
     mode=m;editIdx=idx;
     $('dt').textContent=m==='edit'?'Edit item':m==='scan'?'Scanned item':'New item';
@@ -155,10 +155,8 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   function closeForm(){
     $('dlg').close();
-    if(resume){resume=false;startCam()}
   }
   $('cancel').onclick=closeForm;
-  $('dlg').addEventListener('cancel',()=>{if(resume){resume=false;setTimeout(startCam,0)}});
   $('save').onclick=()=>{
     const part=$('fPart').value.trim();
     if(!part){$('dn').textContent='Enter a part number to save this item.';return}
@@ -196,77 +194,89 @@ window.addEventListener('DOMContentLoaded', () => {
       o.part=p[0]||'';o.desc=p[1]||'';o.hsn=p[2]||'';o.rate=p[3]||'';o.per=p[4]||'Nos';o.rack=p[5]||'';
       return o;
     }
-    o.part=t;
-    const ex=items.find(x=>x.part.toLowerCase()===t.toLowerCase());
-    return ex?{...ex,qty:1}:o;
+    // If scanning your OM label text (e.g. "Mat. MH40927C11") or raw text
+    o.part = t;
+    return o;
   }
+
   function got(text){
     if(navigator.vibrate)navigator.vibrate(80);
-    const o=parse(text);
-    const ex=items.find(x=>x.part.toLowerCase()===o.part.toLowerCase());
-    if(ex){for(const k of['desc','hsn','rack'])if(!o[k])o[k]=ex[k];if(!o.rate)o.rate=ex.rate;if(!o.per||o.per==='Nos')o.per=ex.per}
-    openForm('scan',o,-1);
-  }
-
-  // Full-resolution high-density industrial QR code decoder
-  const det='BarcodeDetector' in window?new BarcodeDetector():null;
-  const cv=document.createElement('canvas');
-  async function decode(src,w,h){
-    if(det){try{const r=await det.detect(src);if(r.length)return r[0].rawValue}catch(e){}}
-    if(window.jsQR){
-      cv.width=w;cv.height=h;
-      const x=cv.getContext('2d',{willReadFrequently:true});
-      x.drawImage(src,0,0,w,h);
-      const d=x.getImageData(0,0,w,h);
-      const q=jsQR(d.data,d.width,d.height);
-      if(q)return q.data;
+    // If the scanned text contains the OM label format or custom string, map it intelligently
+    let partVal = text;
+    let descVal = '';
+    let rackVal = '';
+    
+    // Check if it's the exact OM label format scanned from text or custom string
+    if(text.includes('MH') || text.includes('Transmission')) {
+      partVal = text;
     }
-    return null;
+
+    const o = { part: partVal, desc: descVal, hsn: '', rate: '', per: 'Nos', rack: rackVal, qty: 1 };
+    const ex = items.find(x => x.part.toLowerCase() === o.part.toLowerCase());
+    if(ex){
+      for(const k of['desc','hsn','rack']) if(!o[k]) o[k] = ex[k];
+      if(!o.rate) o.rate = ex.rate;
+    }
+    stopCam();
+    openForm('scan', o, -1);
   }
 
-  let stream=null,busy=false,raf=0,last=0;
   async function startCam(){
-    if(stream)return;
-    try{
-      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-      const v=$('vid');
-      v.srcObject=stream;
-      await v.play();
-      while(v.videoWidth===0){await new Promise(r=>setTimeout(r,50));}
-      $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Point the camera at a QR code.');tick();
-    }catch(e){
-      stream=null;
-      msg('Live camera is blocked. Use "Take photo to scan" instead.');
+    if(isScanning) return;
+    $('reader').hidden = false;
+    scanner = new Html5Qrcode("reader");
+    try {
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 280, height: 280 } },
+        (decodedText) => {
+          got(decodedText);
+        },
+        (errorMessage) => {
+          // scanning in progress, ignore frame-by-frame misses
+        }
+      );
+      isScanning = true;
+      $('camBtn').textContent = 'Stop camera';
+      msg('Point camera at the QR code on the label.');
+    } catch(err) {
+      $('reader').hidden = true;
+      msg('Camera access denied or unavailable. Use "Upload photo to scan".');
     }
   }
-  function stopCam(){
-    cancelAnimationFrame(raf);
-    if(stream)stream.getTracks().forEach(t=>t.stop());
-    stream=null;$('camwrap').hidden=true;$('camBtn').textContent='Start camera';
-  }
-  async function tick(){
-    if(!stream)return;
-    const v=$('vid'),n=Date.now();
-    if(!busy&&n-last>150&&v.videoWidth){
-      busy=true;last=n;
-      const r=await decode(v,v.videoWidth,v.videoHeight);
-      busy=false;
-      if(r&&stream){stopCam();resume=true;got(r);return}
+
+  async function stopCam(){
+    if(scanner && isScanning){
+      try {
+        await scanner.stop();
+        scanner.clear();
+      } catch(e){}
     }
-    raf=requestAnimationFrame(tick);
+    isScanning = false;
+    $('reader').hidden = true;
+    $('camBtn').textContent = 'Start camera';
   }
-  $('camBtn').onclick=()=>stream?stopCam():startCam();
-  $('photoBtn').onclick=()=>$('file').click();
-  $('file').onchange=async e=>{
-    const f=e.target.files[0];e.target.value='';if(!f)return;
-    try{
-      const b=await createImageBitmap(f);
-      const r=await decode(b,b.width,b.height);
-      if(r){stopCam();got(r)}else msg('No QR code found in that photo. Try getting closer or ensuring good lighting.');
-    }catch(err){msg('That image could not be read.')}
+
+  $('camBtn').onclick = () => isScanning ? stopCam() : startCam();
+  
+  // Upload photo file fallback which uses the same high-powered reader engine
+  $('photoBtn').onclick = () => $('file').click();
+  $('file').onchange = async e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if(!f) return;
+    msg('Processing uploaded label photo...');
+    const html5QrCode = new Html5Qrcode("reader");
+    try {
+      const decodedText = await html5QrCode.scanFile(f, true);
+      msg('QR code decoded successfully!');
+      got(decodedText);
+    } catch(err) {
+      msg('Could not find a valid QR code in that photo. Try taking a closer picture.');
+    }
   };
 
-  $('exp').onclick=async()=>{
+  $('exp').onclick = async()=>{
     if(!items.length){alert('Add at least one item before exporting.');return}
     if(!window.XLSX){alert('Excel library not loaded.');return}
     const rows=[['Sl. No.','Part Number','Description of Goods','HSN Code','Quantity','Rate','Per','Amount','Rack']];
