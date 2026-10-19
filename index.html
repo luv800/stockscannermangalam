@@ -51,11 +51,11 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <section id="p1">
 <div class="card">
 <div class="row">
-<button class="btn" id="photoBtn" type="button">📸 Photo of TTO Sticker</button>
+<button class="btn" id="photoBtn" type="button">📸 Scan Sticker</button>
 <button class="btn alt" id="addBtn" type="button">+ Add by Hand</button>
 </div>
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
-<div id="msg" class="mu" role="status" style="margin-top:10px">Ready. Tap "Photo of TTO Sticker" to scan thermal ribbon print.</div>
+<div id="msg" class="mu" role="status" style="margin-top:10px">Ready. Tap "Scan TTO Sticker" to scan thermal ribbon print.</div>
 </div>
 </section>
 
@@ -87,11 +87,11 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off" placeholder="e.g. TRANSMISSION FILTER">
 <div class="g2">
 <div><label for="fHsn">HSN Code</label><input id="fHsn" inputmode="numeric" autocomplete="off"></div>
-<div><label for="fRack">Rack (Manual)</label><input id="fRack" autocomplete="off" placeholder="e.g. MZN07J"></div>
-<div><label for="fQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any" value="1"></div>
-<div><label for="fRate">Rate (MRP)</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="3549.54"></div>
+<div><label for="fRack">Rack (Manual)</label><input id="fRack" autocomplete="off" placeholder="e.g. A1"></div>
+<div><label for="fQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any" value="e.g. 1"></div>
+<div><label for="fRate">Rate (MRP)</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="e.g. 1234.56"></div>
 </div>
-<label for="fPer">Per</label><input id="fPer" list="units" autocomplete="off" value="Nos">
+<label for="fPer">Per</label><input id="fPer" list="units" autocomplete="off" value="e.g. Nos">
 <datalist id="units"><option value="Nos"><option value="Pcs"><option value="Set"><option value="Box"><option value="kg"><option value="Ltr"><option value="Mtr"></datalist>
 <div class="row" style="margin-top:14px">
 <button class="btn" id="save" type="button">Save</button>
