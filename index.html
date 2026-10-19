@@ -107,4 +107,196 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-window.addEventListener('
+window.addEventListener('DOMContentLoaded', () => {
+  const $=id=>document.getElementById(id);
+  const KEY='stock-scanner-items';
+  let items=[];
+  try{items=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(items))items=[]}catch(e){items=[]}
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
+  const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
+  const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-IN');
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  function msg(t){$('msg').textContent=t||''};
+
+  function tab(n){
+    $('p1').hidden=n!==1;$('p2').hidden=n!==2;
+    $('t1').setAttribute('aria-selected',n===1);$('t2').setAttribute('aria-selected',n===2);
+    if(n!==1)stopCam();
+    if(n===2)render();
+  }
+  $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
+
+  function render(){
+    const f=$('q').value.trim().toLowerCase();
+    let html='';
+    items.forEach((x,i)=>{
+      if(f&&![x.part,x.desc,x.rack].join(' ').toLowerCase().includes(f))return;
+      html+='<tr data-i="'+i+'"><td>'+(i+1)+'</td><td>'+esc(x.part)+'</td><td class="d">'+esc(x.desc)+'</td><td>'+esc(x.hsn)+'</td><td class="n">'+fmt(x.qty)+'</td><td class="n">'+fmt(x.rate)+'</td><td>'+esc(x.per)+'</td><td class="n">'+fmt(x.qty*x.rate)+'</td><td>'+esc(x.rack)+'</td></tr>';
+    });
+    $('rows').innerHTML=html||'<tr><td colspan="9" class="empty">'+(items.length?'No item matches your search.':'No items yet. Scan a QR code or add an item by hand.')+'</td></tr>';
+    $('sI').textContent=items.length;
+    $('sQ').textContent=fmt(items.reduce((a,x)=>a+x.qty,0));
+    $('sV').textContent=fmt(items.reduce((a,x)=>a+x.qty*x.rate,0));
+  }
+  $('q').oninput=render;
+  $('rows').onclick=e=>{const r=e.target.closest('tr[data-i]');if(r)openForm('edit',items[+r.dataset.i],+r.dataset.i)};
+
+  let mode='',editIdx=-1,scanner=null,isScanning=false;
+  function openForm(m,o,idx){
+    mode=m;editIdx=idx;
+    $('dt').textContent=m==='edit'?'Edit item':m==='scan'?'Scanned item':'New item';
+    $('fPart').value=o.part||'';$('fDesc').value=o.desc||'';$('fHsn').value=o.hsn||'';
+    $('fRack').value=o.rack||'';$('fRate').value=o.rate===''||o.rate==null?'':o.rate;
+    $('fPer').value=o.per||'Nos';$('fQty').value=o.qty==null?1:o.qty;
+    const ex=m==='scan'?items.find(x=>x.part.toLowerCase()===(o.part||'').toLowerCase()):null;
+    $('lQty').textContent=ex?'Quantity to add':'Quantity';
+    $('dn').textContent=ex?'Already in your list with quantity '+fmt(ex.qty)+'. The quantity below will be added.':'';
+    $('del').hidden=m!=='edit';
+    $('dlg').showModal();
+  }
+  function closeForm(){$('dlg'.close())}
+  $('cancel').onclick=()=>$('dlg').close();
+  $('save').onclick=()=>{
+    const part=$('fPart').value.trim();
+    if(!part){$('dn').textContent='Enter a part number to save this item.';return}
+    const o={part,desc:$('fDesc').value.trim(),hsn:$('fHsn').value.trim(),qty:num($('fQty').value),rate:num($('fRate').value),per:$('fPer').value.trim()||'Nos',rack:$('fRack').value.trim()};
+    if(mode==='edit'){items[editIdx]=o}
+    else{
+      const ex=items.find(x=>x.part.toLowerCase()===part.toLowerCase());
+      if(ex){ex.qty+=o.qty;for(const k of['desc','hsn','per','rack'])if(o[k])ex[k]=o[k];if(o.rate)ex.rate=o.rate}
+      else items.push(o);
+    }
+    persist();render();msg('Saved '+part+'.');$('dlg').close();
+  };
+  $('del').onclick=()=>{
+    if(!confirm('Delete '+items[editIdx].part+' from the stock list?'))return;
+    items.splice(editIdx,1);persist();render();$('dlg').close();
+  };
+  $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
+
+  // Clean parser for OM equipment parts labels
+  function got(text){
+    if(navigator.vibrate)navigator.vibrate(80);
+    const cleanText = text.trim();
+    let partNum = cleanText;
+    let descTxt = '';
+    let rackTxt = '';
+    let qtyVal = 1;
+
+    // If scanning contains serial/mat patterns, extract clean part number if possible
+    if(cleanText.includes('MH') || cleanText.length < 25) {
+      partNum = cleanText;
+    }
+
+    const o={part:partNum, desc:descTxt, hsn:'', rate:'', per:'Nos', rack:rackTxt, qty:qtyVal};
+    const ex=items.find(x=>x.part.toLowerCase()===o.part.toLowerCase());
+    if(ex){
+      for(const k of['desc','hsn','rack'])if(!o[k])o[k]=ex[k];
+      if(!o.rate)o.rate=ex.rate;
+    }
+    stopCam();
+    openForm('scan',o,-1);
+  }
+
+  async function startCam(){
+    if(isScanning)return;
+    $('reader').hidden=false;
+    scanner=new Html5Qrcode("reader");
+    try{
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 280, height: 280 } },
+        (decodedText)=>{ got(decodedText); },
+        (errorMessage)=>{}
+      );
+      isScanning=true;
+      $('camBtn').textContent='Stop camera';
+      msg('Point camera at the QR code.');
+    }catch(err){
+      $('reader').hidden=true;
+      msg('Camera unavailable. Use "Upload photo to scan".');
+    }
+  }
+
+  async function stopCam(){
+    if(scanner && isScanning){
+      try{await scanner.stop();scanner.clear()}catch(e){}
+    }
+    isScanning=false;
+    $('reader').hidden=true;
+    $('camBtn').textContent='Start camera';
+  }
+
+  $('camBtn').onclick=()=>isScanning?stopCam():startCam();
+  $('photoBtn').onclick=()=>$('file').click();
+  $('file').onchange=async e=>{
+    const f=e.target.files[0];e.target.value='';if(!f)return;
+    msg('Processing label photo...');
+    const qrReader=new Html5Qrcode("reader");
+    try{
+      const decodedText=await qrReader.scanFile(f,true);
+      msg('QR code decoded!');
+      got(decodedText);
+    }catch(err){
+      msg('Could not read QR from photo. Ensure good lighting.');
+    }
+  };
+
+  // Export Excel
+  $('exp').onclick=async()=>{
+    if(!items.length){alert('Add at least one item before exporting.');return}
+    const rows=[['Sl. No.','Part Number','Description of Goods','HSN Code','Quantity','Rate','Per','Amount','Rack']];
+    items.forEach((x,i)=>rows.push([i+1,x.part,x.desc,x.hsn,x.qty,x.rate,x.per,x.qty*x.rate,x.rack]));
+    rows.push(['','','','Total',items.reduce((a,x)=>a+x.qty,0),'','',items.reduce((a,x)=>a+x.qty*x.rate,0),'']);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Stock');
+    const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const name='Stock_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    const u=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);
+    msg('Exported '+name+'.');
+  };
+
+  // Import Excel (Syncs phone and laptop instantly)
+  $('impBtn').onclick=()=>$('impFile').click();
+  $('impFile').onchange=async e=>{
+    const f=e.target.files[0];e.target.value='';if(!f)return;
+    try{
+      const data=await f.arrayBuffer();
+      const wb=XLSX.read(data);
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const json=XLSX.utils.sheet_to_json(ws,{header:1});
+      const newItems=[];
+      for(let i=1; i<json.length; i++){
+        const r=json[i];
+        if(!r[1] || r[1]==='Total') continue;
+        newItems.push({
+          part: String(r[1]||''),
+          desc: String(r[2]||''),
+          hsn: String(r[3]||''),
+          qty: num(r[4]),
+          rate: num(r[5]),
+          per: String(r[6]||'Nos'),
+          rack: String(r[8]||'')
+        });
+      }
+      if(newItems.length){
+        items=newItems;
+        persist();
+        render();
+        msg('Successfully imported '+items.length+' items!');
+      }else{
+        alert('No valid items found in this Excel file.');
+      }
+    }catch(err){
+      alert('Could not parse the Excel file.');
+    }
+  };
+
+  render();
+});
+</script>
+</body>
+</html>
