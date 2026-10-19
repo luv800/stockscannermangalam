@@ -66,7 +66,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </div>
 <div class="card mu">
 <b style="color:var(--tx)">What the QR code can hold</b><br>
-Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON with those names, or just the part number. A scan of a part number already in your list adds to its quantity.[cite: 1]
+Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON with those names, or just the part number. A scan of a part number already in your list adds to its quantity[cite: 1].
 </div>
 </section>
 
@@ -86,7 +86,7 @@ Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON 
 <tbody id="rows"></tbody>
 </table>
 </div>
-<p class="mu">Tap a row to edit or delete it.</p>
+<p class="mu">Tap a row to edit or delete it[cite: 1].</p>
 </section>
 </main>
 
@@ -113,190 +113,194 @@ Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const $=id=>document.getElementById(id);
-const KEY='stock-scanner-items';
-let items=[];
-try{items=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(items))items=[]}catch(e){items=[]}
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
-const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
-const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-IN');
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function msg(t){$('msg').textContent=t||''}
+try {
+  const $=id=>document.getElementById(id);
+  const KEY='stock-scanner-items';
+  let items=[];
+  try{items=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(items))items=[]}catch(e){items=[]}
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
+  const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
+  const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-IN');
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  function msg(t){$('msg').textContent=t||''}
 
-/* tabs */
-function tab(n){
-  $('p1').hidden=n!==1;$('p2').hidden=n!==2;
-  $('t1').setAttribute('aria-selected',n===1);$('t2').setAttribute('aria-selected',n===2);
-  if(n!==1)stopCam();
-  if(n===2)render();
-}
-$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
-
-/* stock list */
-function render(){
-  const f=$('q').value.trim().toLowerCase();
-  let html='';
-  items.forEach((x,i)=>{
-    if(f&&![x.part,x.desc,x.rack].join(' ').toLowerCase().includes(f))return;
-    html+='<tr data-i="'+i+'"><td>'+(i+1)+'</td><td>'+esc(x.part)+'</td><td class="d">'+esc(x.desc)+'</td><td>'+esc(x.hsn)+'</td><td class="n">'+fmt(x.qty)+'</td><td class="n">'+fmt(x.rate)+'</td><td>'+esc(x.per)+'</td><td class="n">'+fmt(x.qty*x.rate)+'</td><td>'+esc(x.rack)+'</td></tr>';
-  });
-  $('rows').innerHTML=html||'<tr><td colspan="9" class="empty">'+(items.length?'No item matches your search.':'No items yet. Scan a QR code or add an item by hand.')+'</td></tr>';
-  $('sI').textContent=items.length;
-  $('sQ').textContent=fmt(items.reduce((a,x)=>a+x.qty,0));
-  $('sV').textContent=fmt(items.reduce((a,x)=>a+x.qty*x.rate,0));
-}
-$('q').oninput=render;
-$('rows').onclick=e=>{const r=e.target.closest('tr[data-i]');if(r)openForm('edit',items[+r.dataset.i],+r.dataset.i)};
-
-/* item form */
-let mode='',editIdx=-1,resume=false;
-function openForm(m,o,idx){
-  mode=m;editIdx=idx;
-  $('dt').textContent=m==='edit'?'Edit item':m==='scan'?'Scanned item':'New item';
-  $('fPart').value=o.part||'';$('fDesc').value=o.desc||'';$('fHsn').value=o.hsn||'';
-  $('fRack').value=o.rack||'';$('fRate').value=o.rate===''||o.rate==null?'':o.rate;
-  $('fPer').value=o.per||'Nos';$('fQty').value=o.qty==null?1:o.qty;
-  const ex=m==='scan'?items.find(x=>x.part.toLowerCase()===(o.part||'').toLowerCase()):null;
-  $('lQty').textContent=ex?'Quantity to add':'Quantity';
-  $('dn').textContent=ex?'Already in your list with quantity '+fmt(ex.qty)+'. The quantity below will be added.':'';
-  $('del').hidden=m!=='edit';
-  $('dlg').showModal();
-}
-function closeForm(){
-  $('dlg').close();
-  if(resume){resume=false;startCam()}
-}
-$('cancel').onclick=closeForm;
-$('dlg').addEventListener('cancel',()=>{if(resume){resume=false;setTimeout(startCam,0)}});
-$('save').onclick=()=>{
-  const part=$('fPart').value.trim();
-  if(!part){$('dn').textContent='Enter a part number to save this item.';return}
-  const o={part,desc:$('fDesc').value.trim(),hsn:$('fHsn').value.trim(),qty:num($('fQty').value),rate:num($('fRate').value),per:$('fPer').value.trim()||'Nos',rack:$('fRack').value.trim()};
-  if(mode==='edit'){items[editIdx]=o}
-  else{
-    const ex=items.find(x=>x.part.toLowerCase()===part.toLowerCase());
-    if(ex){ex.qty+=o.qty;for(const k of['desc','hsn','per','rack'])if(o[k])ex[k]=o[k];if(o.rate)ex.rate=o.rate}
-    else items.push(o);
+  /* tabs */
+  function tab(n){
+    $('p1').hidden=n!==1;$('p2').hidden=n!==2;
+    $('t1').setAttribute('aria-selected',n===1);$('t2').setAttribute('aria-selected',n===2);
+    if(n!==1)stopCam();
+    if(n===2)render();
   }
-  persist();render();msg('Saved '+part+'.');closeForm();
-};
-$('del').onclick=()=>{
-  if(!confirm('Delete '+items[editIdx].part+' from the stock list?'))return;
-  items.splice(editIdx,1);persist();render();$('dlg').close();
-};
-$('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
+  $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
 
-/* QR text -> item */
-function parse(t){
-  t=t.trim();
-  const o={part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1};
-  try{
-    const j=JSON.parse(t);
-    if(j&&typeof j==='object'&&!Array.isArray(j)){
-      const g=(...ks)=>{for(const y in j){if(ks.includes(y.toLowerCase().replace(/[^a-z]/g,'')))return String(j[y])}return ''};
-      o.part=g('partnumber','partno','part','id','sku','code');
-      o.desc=g('descriptionofgoods','description','name','item');
-      o.hsn=g('hsncode','hsn');o.rate=g('rate','price');o.per=g('per','unit')||'Nos';o.rack=g('rack','location');
-      const q=g('quantity','qty');if(q)o.qty=num(q)||1;
-      if(o.part)return o;
+  /* stock list */
+  function render(){
+    const f=$('q').value.trim().toLowerCase();
+    let html='';
+    items.forEach((x,i)=>{
+      if(f&&![x.part,x.desc,x.rack].join(' ').toLowerCase().includes(f))return;
+      html+='<tr data-i="'+i+'"><td>'+(i+1)+'</td><td>'+esc(x.part)+'</td><td class="d">'+esc(x.desc)+'</td><td>'+esc(x.hsn)+'</td><td class="n">'+fmt(x.qty)+'</td><td class="n">'+fmt(x.rate)+'</td><td>'+esc(x.per)+'</td><td class="n">'+fmt(x.qty*x.rate)+'</td><td>'+esc(x.rack)+'</td></tr>';
+    });
+    $('rows').innerHTML=html||'<tr><td colspan="9" class="empty">'+(items.length?'No item matches your search.':'No items yet. Scan a QR code or add an item by hand.')+'</td></tr>';
+    $('sI').textContent=items.length;
+    $('sQ').textContent=fmt(items.reduce((a,x)=>a+x.qty,0));
+    $('sV').textContent=fmt(items.reduce((a,x)=>a+x.qty*x.rate,0));
+  }
+  $('q').oninput=render;
+  $('rows').onclick=e=>{const r=e.target.closest('tr[data-i]');if(r)openForm('edit',items[+r.dataset.i],+r.dataset.i)};
+
+  /* item form */
+  let mode='',editIdx=-1,resume=false;
+  function openForm(m,o,idx){
+    mode=m;editIdx=idx;
+    $('dt').textContent=m==='edit'?'Edit item':m==='scan'?'Scanned item':'New item';
+    $('fPart').value=o.part||'';$('fDesc').value=o.desc||'';$('fHsn').value=o.hsn||'';
+    $('fRack').value=o.rack||'';$('fRate').value=o.rate===''||o.rate==null?'':o.rate;
+    $('fPer').value=o.per||'Nos';$('fQty').value=o.qty==null?1:o.qty;
+    const ex=m==='scan'?items.find(x=>x.part.toLowerCase()===(o.part||'').toLowerCase()):null;
+    $('lQty').textContent=ex?'Quantity to add':'Quantity';
+    $('dn').textContent=ex?'Already in your list with quantity '+fmt(ex.qty)+'. The quantity below will be added.':'';
+    $('del').hidden=m!=='edit';
+    $('dlg').showModal();
+  }
+  function closeForm(){
+    $('dlg').close();
+    if(resume){resume=false;startCam()}
+  }
+  $('cancel').onclick=closeForm;
+  $('dlg').addEventListener('cancel',()=>{if(resume){resume=false;setTimeout(startCam,0)}});
+  $('save').onclick=()=>{
+    const part=$('fPart').value.trim();
+    if(!part){$('dn').textContent='Enter a part number to save this item.';return}
+    const o={part,desc:$('fDesc').value.trim(),hsn:$('fHsn').value.trim(),qty:num($('fQty').value),rate:num($('fRate').value),per:$('fPer').value.trim()||'Nos',rack:$('fRack').value.trim()};
+    if(mode==='edit'){items[editIdx]=o}
+    else{
+      const ex=items.find(x=>x.part.toLowerCase()===part.toLowerCase());
+      if(ex){ex.qty+=o.qty;for(const k of['desc','hsn','per','rack'])if(o[k])ex[k]=o[k];if(o.rate)ex.rate=o.rate}
+      else items.push(o);
     }
-  }catch(e){}
-  if(t.includes('|')){
-    const p=t.split('|').map(s=>s.trim());
-    o.part=p[0]||'';o.desc=p[1]||'';o.hsn=p[2]||'';o.rate=p[3]||'';o.per=p[4]||'Nos';o.rack=p[5]||'';
-    return o;
-  }
-  o.part=t;
-  const ex=items.find(x=>x.part.toLowerCase()===t.toLowerCase());
-  return ex?{...ex,qty:1}:o;
-}
-function got(text){
-  if(navigator.vibrate)navigator.vibrate(80);
-  const o=parse(text);
-  const ex=items.find(x=>x.part.toLowerCase()===o.part.toLowerCase());
-  if(ex){for(const k of['desc','hsn','rack'])if(!o[k])o[k]=ex[k];if(!o.rate)o.rate=ex.rate;if(!o.per||o.per==='Nos')o.per=ex.per}
-  openForm('scan',o,-1);
-}
+    persist();render();msg('Saved '+part+'.');closeForm();
+  };
+  $('del').onclick=()=>{
+    if(!confirm('Delete '+items[editIdx].part+' from the stock list?'))return;
+    items.splice(editIdx,1);persist();render();$('dlg').close();
+  };
+  $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
 
-/* decoding */
-const det='BarcodeDetector' in window?new BarcodeDetector():null;
-const cv=document.createElement('canvas');
-async function decode(src,w,h){
-  if(det){try{const r=await det.detect(src);if(r.length)return r[0].rawValue}catch(e){}}
-  if(window.jsQR){
-    const s=Math.min(1,720/w);cv.width=Math.round(w*s);cv.height=Math.round(h*s);
-    const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,cv.width,cv.height);
-    const d=x.getImageData(0,0,cv.width,cv.height);const q=jsQR(d.data,d.width,d.height);
-    if(q)return q.data;
+  /* QR text -> item */
+  function parse(t){
+    t=t.trim();
+    const o={part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1};
+    try{
+      const j=JSON.parse(t);
+      if(j&&typeof j==='object'&&!Array.isArray(j)){
+        const g=(...ks)=>{for(const y in j){if(ks.includes(y.toLowerCase().replace(/[^a-z]/g,'')))return String(j[y])}return ''};
+        o.part=g('partnumber','partno','part','id','sku','code');
+        o.desc=g('descriptionofgoods','description','name','item');
+        o.hsn=g('hsncode','hsn');o.rate=g('rate','price');o.per=g('per','unit')||'Nos';o.rack=g('rack','location');
+        const q=g('quantity','qty');if(q)o.qty=num(q)||1;
+        if(o.part)return o;
+      }
+    }catch(e){}
+    if(t.includes('|')){
+      const p=t.split('|').map(s=>s.trim());
+      o.part=p[0]||'';o.desc=p[1]||'';o.hsn=p[2]||'';o.rate=p[3]||'';o.per=p[4]||'Nos';o.rack=p[5]||'';
+      return o;
+    }
+    o.part=t;
+    const ex=items.find(x=>x.part.toLowerCase()===t.toLowerCase());
+    return ex?{...ex,qty:1}:o;
   }
-  return null;
-}
+  function got(text){
+    if(navigator.vibrate)navigator.vibrate(80);
+    const o=parse(text);
+    const ex=items.find(x=>x.part.toLowerCase()===o.part.toLowerCase());
+    if(ex){for(const k of['desc','hsn','rack'])if(!o[k])o[k]=ex[k];if(!o.rate)o.rate=ex.rate;if(!o.per||o.per==='Nos')o.per=ex.per}
+    openForm('scan',o,-1);
+  }
 
-/* camera */
-let stream=null,busy=false,raf=0,last=0;
-async function startCam(){
-  if(stream)return;
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-    $('vid').srcObject=stream;await $('vid').play();
-    $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Point the camera at a QR code.');tick();
-  }catch(e){
-    stream=null;
-    msg('Live camera is blocked in this view ('+((e&&e.name)||'error')+'). Tap Take photo to scan to use your phone camera instead.');
+  /* decoding */
+  const det='BarcodeDetector' in window?new BarcodeDetector():null;
+  const cv=document.createElement('canvas');
+  async function decode(src,w,h){
+    if(det){try{const r=await det.detect(src);if(r.length)return r[0].rawValue}catch(e){}}
+    if(window.jsQR){
+      const s=Math.min(1,720/w);cv.width=Math.round(w*s);cv.height=Math.round(h*s);
+      const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,cv.width,cv.height);
+      const d=x.getImageData(0,0,cv.width,cv.height);const q=jsQR(d.data,d.width,d.height);
+      if(q)return q.data;
+    }
+    return null;
   }
-}
-function stopCam(){
-  cancelAnimationFrame(raf);
-  if(stream)stream.getTracks().forEach(t=>t.stop());
-  stream=null;$('camwrap').hidden=true;$('camBtn').textContent='Start camera';
-}
-async function tick(){
-  if(!stream)return;
-  const v=$('vid'),n=Date.now();
-  if(!busy&&n-last>150&&v.videoWidth){
-    busy=true;last=n;
-    const r=await decode(v,v.videoWidth,v.videoHeight);
-    busy=false;
-    if(r&&stream){stopCam();resume=true;got(r);return}
-  }
-  raf=requestAnimationFrame(tick);
-}
-$('camBtn').onclick=()=>stream?stopCam():startCam();
-$('photoBtn').onclick=()=>$('file').click();
-$('file').onchange=async e=>{
-  const f=e.target.files[0];e.target.value='';if(!f)return;
-  try{
-    const b=await createImageBitmap(f);
-    const r=await decode(b,b.width,b.height);
-    if(r){stopCam();got(r)}else msg('No QR code found in that photo. Try again with the code filling more of the frame.');
-  }catch(err){msg('That image could not be read.')}
-};
 
-/* excel export */
-$('exp').onclick=async()=>{
-  if(!items.length){alert('Add at least one item before exporting.');return}
-  if(!window.XLSX){alert('The Excel library did not load. Check your connection and reload.');return}
-  const rows=[['Sl. No.','Part Number','Description of Goods','HSN Code','Quantity','Rate','Per','Amount','Rack']];
-  items.forEach((x,i)=>rows.push([i+1,x.part,x.desc,x.hsn,x.qty,x.rate,x.per,x.qty*x.rate,x.rack]));
-  rows.push(['','','','Total',items.reduce((a,x)=>a+x.qty,0),'','',items.reduce((a,x)=>a+x.qty*x.rate,0),'']);
-  const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:7},{wch:18},{wch:36},{wch:12},{wch:10},{wch:10},{wch:7},{wch:12},{wch:10}];
-  const by={};
-  items.forEach(x=>{const k=x.rack||'(no rack)';by[k]=by[k]||{n:0,q:0,v:0};by[k].n++;by[k].q+=x.qty;by[k].v+=x.qty*x.rate});
-  const sm=[['Rack','Items','Total Quantity','Stock Value']];
-  Object.keys(by).sort().forEach(k=>sm.push([k,by[k].n,by[k].q,by[k].v]));
-  sm.push(['Total',items.length,items.reduce((a,x)=>a+x.qty,0),items.reduce((a,x)=>a+x.qty*x.rate,0)]);
-  const ws2=XLSX.utils.aoa_to_sheet(sm);ws2['!cols']=[{wch:16},{wch:8},{wch:15},{wch:14}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Stock');XLSX.utils.book_append_sheet(wb,ws2,'Summary');
-  const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-  const name='Stock_'+new Date().toISOString().slice(0,10)+'.xlsx';
-  let dl=null;try{dl=await claude.use('downloads')}catch(e){}
-  if(!dl){const u=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);msg('Exported '+name+'.');return}
-  try{await dl.save({filename:name,data});msg('Exported '+name+'.')}
-  catch(e){if(!e||e.code!=='declined')alert('The file could not be saved ('+((e&&e.code)||'error')+').')}
-};
-render();
+  /* camera */
+  let stream=null,busy=false,raf=0,last=0;
+  async function startCam(){
+    if(stream)return;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+      $('vid').srcObject=stream;await $('vid').play();
+      $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Point the camera at a QR code.');tick();
+    }catch(e){
+      stream=null;
+      msg('Live camera is blocked in this view ('+((e&&e.name)||'error')+'). Tap Take photo to scan to use your phone camera instead.');
+    }
+  }
+  function stopCam(){
+    cancelAnimationFrame(raf);
+    if(stream)stream.getTracks().forEach(t=>t.stop());
+    stream=null;$('camwrap').hidden=true;$('camBtn').textContent='Start camera';
+  }
+  async function tick(){
+    if(!stream)return;
+    const v=$('vid'),n=Date.now();
+    if(!busy&&n-last>150&&v.videoWidth){
+      busy=true;last=n;
+      const r=await decode(v,v.videoWidth,v.videoHeight);
+      busy=false;
+      if(r&&stream){stopCam();resume=true;got(r);return}
+    }
+    raf=requestAnimationFrame(tick);
+  }
+  $('camBtn').onclick=()=>stream?stopCam():startCam();
+  $('photoBtn').onclick=()=>$('file').click();
+  $('file').onchange=async e=>{
+    const f=e.target.files[0];e.target.value='';if(!f)return;
+    try{
+      const b=await createImageBitmap(f);
+      const r=await decode(b,b.width,b.height);
+      if(r){stopCam();got(r)}else msg('No QR code found in that photo. Try again with the code filling more of the frame.');
+    }catch(err){msg('That image could not be read.')}
+  };
+
+  /* excel export */
+  $('exp').onclick=async()=>{
+    if(!items.length){alert('Add at least one item before exporting.');return}
+    if(!window.XLSX){alert('The Excel library did not load. Check your connection and reload.');return}
+    const rows=[['Sl. No.','Part Number','Description of Goods','HSN Code','Quantity','Rate','Per','Amount','Rack']];
+    items.forEach((x,i)=>rows.push([i+1,x.part,x.desc,x.hsn,x.qty,x.rate,x.per,x.qty*x.rate,x.rack]));
+    rows.push(['','','','Total',items.reduce((a,x)=>a+x.qty,0),'','',items.reduce((a,x)=>a+x.qty*x.rate,0),'']);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:7},{wch:18},{wch:36},{wch:12},{wch:10},{wch:10},{wch:7},{wch:12},{wch:10}];
+    const by={};
+    items.forEach(x=>{const k=x.rack||'(no rack)';by[k]=by[k]||{n:0,q:0,v:0};by[k].n++;by[k].q+=x.qty;by[k].v+=x.qty*x.rate});
+    const sm=[['Rack','Items','Total Quantity','Stock Value']];
+    Object.keys(by).sort().forEach(k=>sm.push([k,by[k].n,by[k].q,by[k].v]));
+    sm.push(['Total',items.length,items.reduce((a,x)=>a+x.qty,0),items.reduce((a,x)=>a+x.qty*x.rate,0)]);
+    const ws2=XLSX.utils.aoa_to_sheet(sm);ws2['!cols']=[{wch:16},{wch:8},{wch:15},{wch:14}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Stock');XLSX.utils.book_append_sheet(wb,ws2,'Summary');
+    const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const name='Stock_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    let dl=null;try{dl=await claude.use('downloads')}catch(e){}
+    if(!dl){const u=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);msg('Exported '+name+'.');return}
+    try{await dl.save({filename:name,data});msg('Exported '+name+'.')}
+    catch(e){if(!e||e.code!=='declined')alert('The file could not be saved ('+((e&&e.code)||'error')+').')}
+  };
+  render();
+} catch(err) {
+  console.error("App initialization error:", err);
+}
 </script>
 </body>
 </html>
