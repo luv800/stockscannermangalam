@@ -45,12 +45,12 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner</h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v3</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
 </div>
- 
+
 <section id="p1">
 <div class="card">
 <div class="row">
@@ -63,7 +63,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="frame"></div></div>
 </div>
 </section>
- 
+
 <section id="p2" hidden>
 <div class="stats">
 <div class="stat"><span class="mu">Items</span><b id="sI">0</b></div>
@@ -84,7 +84,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </div>
 </section>
 </main>
- 
+
 <dialog id="dlg">
 <h2 id="dt" style="margin:0 0 4px;font-size:18px"></h2>
 <div id="dn" class="mu"></div>
@@ -104,11 +104,13 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button class="btn del" id="del" type="button" style="margin-left:auto">Delete</button>
 </div>
 </dialog>
- 
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
+window.addEventListener('error',e=>{const m=document.getElementById('msg');if(m)m.textContent='Error: '+e.message});
+window.addEventListener('unhandledrejection',e=>{const m=document.getElementById('msg');if(m)m.textContent='Error: '+((e.reason&&e.reason.message)||e.reason)});
 window.addEventListener('DOMContentLoaded', () => {
   const $=id=>document.getElementById(id);
   const KEY='stock-scanner-items';
@@ -119,7 +121,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-IN');
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function msg(t){$('msg').textContent=t||''};
- 
+
   function tab(n){
     $('p1').hidden=n!==1;$('p2').hidden=n!==2;
     $('t1').setAttribute('aria-selected',n===1);$('t2').setAttribute('aria-selected',n===2);
@@ -127,7 +129,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if(n===2)render();
   }
   $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
- 
+
   function render(){
     const f=$('q').value.trim().toLowerCase();
     let html='';
@@ -142,7 +144,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   $('q').oninput=render;
   $('rows').onclick=e=>{const r=e.target.closest('tr[data-i]');if(r)openForm('edit',items[+r.dataset.i],+r.dataset.i)};
- 
+
   let mode='',editIdx=-1;
   function openForm(m,o,idx){
     mode=m;editIdx=idx;
@@ -174,7 +176,7 @@ window.addEventListener('DOMContentLoaded', () => {
     items.splice(editIdx,1);persist();render();$('dlg').close();
   };
   $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
- 
+
   // QR on OM labels reads like: 1.000/4943888379/0007/066  (qty / number / number / code)
   function parseQR(t){
     t=t.trim();
@@ -188,7 +190,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     o.part=t;return o;
   }
- 
+
   // Printed label text -> fields: top line = Description of Goods, Mat. = Part Number, Bin = Rack
   function parseLabel(t){
     const o={};
@@ -204,7 +206,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     return o;
   }
- 
+
   // Crop the label area around the QR code (text sits to the left of it) for OCR
   function cropLabel(src,w,h,b){
     const q=Math.max(b.x1-b.x0,b.y1-b.y0);
@@ -225,27 +227,27 @@ window.addEventListener('DOMContentLoaded', () => {
       const w=await wk;const r=await w.recognize(canvas);return r.data.text||'';
     }catch(e){wk=null;return ''}
   }
- 
+
   async function got(res,crop){
     if(navigator.vibrate)navigator.vibrate(80);
     stopCam();
     const o=parseQR(res.text);
-    let read=false;
-    if(crop){
-      msg('QR read. Reading the label text (the first time takes a few seconds)...');
-      const lab=parseLabel(await ocr(crop));
-      if(lab.part||lab.desc||lab.rack){read=true;o.part=lab.part||o.part;o.desc=lab.desc||o.desc;o.rack=lab.rack||o.rack}
-    }
     const ex=items.find(x=>x.part&&x.part.toLowerCase()===o.part.toLowerCase());
     if(ex){for(const k of['desc','hsn','rack'])if(!o[k])o[k]=ex[k];if(!o.rate)o.rate=ex.rate;o.per=ex.per}
-    msg('');
+    msg('QR code read.');
     openForm('scan',o,-1);
-    if(!ex){
-      if(read)$('dn').textContent='Read from the label. Check Part Number, Description and Rack, then add HSN Code and Rate.';
-      else if(o.box)$('dn').textContent='Label text could not be read. Number from QR: '+o.box+'. Type the Part Number from the label.';
-    }
+    if(ex||!crop)return;
+    $('dn').textContent=(o.box?'Number from QR: '+o.box+'. ':'')+'Reading the label text (the first time takes a few seconds)...';
+    let txt='';
+    try{txt=await Promise.race([ocr(crop),new Promise(r=>setTimeout(()=>r(''),25000))])}catch(e){}
+    if(!$('dlg').open||mode!=='scan')return;
+    const lab=parseLabel(txt);let any=false;
+    if(lab.part&&!$('fPart').value.trim()){$('fPart').value=lab.part;any=true}
+    if(lab.desc&&!$('fDesc').value.trim()){$('fDesc').value=lab.desc;any=true}
+    if(lab.rack&&!$('fRack').value.trim()){$('fRack').value=lab.rack;any=true}
+    $('dn').textContent=any?'Read from the label. Check Part Number, Description and Rack, then add HSN Code and Rate.':(window.Tesseract?'The label text could not be read. Type the Part Number from the label.':'The text reader did not load. Check your internet connection, then reload. Type the Part Number for now.');
   }
- 
+
   const det='BarcodeDetector' in window?new BarcodeDetector():null;
   const cv=document.createElement('canvas');
   // returns {text, box:{x0,x1,y0,y1}} in the source's own pixels, or null
@@ -271,7 +273,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     return null;
   }
- 
+
   let stream=null,busy=false,raf=0,last=0;
   async function startCam(){
     if(stream)return;
@@ -293,9 +295,11 @@ window.addEventListener('DOMContentLoaded', () => {
     const v=$('vid'),n=Date.now();
     if(!busy&&n-last>200&&v.videoWidth){
       busy=true;last=n;
-      const r=await decode(v,v.videoWidth,v.videoHeight);
-      busy=false;
-      if(r&&stream){const c=cropLabel(v,v.videoWidth,v.videoHeight,r.box);got(r,c);return}
+      try{
+        const r=await decode(v,v.videoWidth,v.videoHeight);
+        busy=false;
+        if(r&&stream){let c=null;try{c=cropLabel(v,v.videoWidth,v.videoHeight,r.box)}catch(e){}got(r,c);return}
+      }catch(e){busy=false;msg('Scan error: '+((e&&e.message)||e))}
     }
     raf=requestAnimationFrame(tick);
   }
@@ -311,7 +315,7 @@ window.addEventListener('DOMContentLoaded', () => {
       else msg('No QR code found. Move closer so the label fills the photo, keep it sharp and avoid glare.');
     }catch(err){msg('That image could not be read.')}
   };
- 
+
   // Export Excel
   $('exp').onclick=async()=>{
     if(!items.length){alert('Add at least one item before exporting.');return}
@@ -328,7 +332,7 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(()=>URL.revokeObjectURL(u),4000);
     msg('Exported '+name+'.');
   };
- 
+
   // Import Excel (Syncs phone and laptop instantly)
   $('impBtn').onclick=()=>$('impFile').click();
   $('impFile').onchange=async e=>{
@@ -364,7 +368,7 @@ window.addEventListener('DOMContentLoaded', () => {
       alert('Could not parse the Excel file.');
     }
   };
- 
+
   render();
 });
 </script>
