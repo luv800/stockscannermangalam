@@ -21,9 +21,6 @@ h1{font-size:22px;margin:4px 0 12px}
 .btn.del{background:transparent;color:var(--dg);border-color:var(--dg)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .mu{color:var(--mu);font-size:14px}
-#camwrap{position:relative;margin-top:12px;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:4/3}
-#camwrap video{width:100%;height:100%;object-fit:cover;display:block}
-.frame{position:absolute;inset:10% 10%;border:3px solid var(--hi);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .stat{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
 .stat b{display:block;font-size:20px}
@@ -45,22 +42,18 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v15</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v16</span></h1>
 <div class="tabs" role="tablist">
-<button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
+<button id="t1" role="tab" aria-selected="true" type="button">Scan / Add</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
 </div>
 
 <section id="p1">
 <div class="card">
 <div class="row">
-<button class="btn" id="camBtn" type="button">Start camera</button>
-<button class="btn alt" id="photoBtn" type="button">Photo of sticker</button>
-<button class="btn alt" id="addBtn" type="button">Add item by hand</button>
+<button class="btn" id="addBtn" type="button">+ Add New Item</button>
 </div>
-<input type="file" id="file" accept="image/*" hidden>
-<div id="msg" class="mu" role="status">Ready. Tap "Photo of sticker" to capture your OM label.</div>
-<div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="frame"></div></div>
+<div id="msg" class="mu" role="status" style="margin-top:10px">Ready. Click "+ Add New Item" to add parts instantly.</div>
 </div>
 </section>
 
@@ -88,16 +81,15 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <dialog id="dlg">
 <h2 id="dt" style="margin:0 0 4px;font-size:18px"></h2>
 <div id="dn" class="mu"></div>
-<details id="raw"><summary class="mu">Text the app read (Tap to check)</summary><pre id="rawt" style="white-space:pre-wrap;font-size:12px;margin:6px 0 0;max-height:100px;overflow-y:auto;background:var(--bg);padding:6px;border-radius:6px"></pre></details>
-<label for="fPart">Part Number</label><input id="fPart" autocomplete="off">
-<label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off">
+<label for="fPart">Part Number</label><input id="fPart" autocomplete="off" placeholder="e.g. MH40927C11">
+<label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off" placeholder="e.g. TRANSMISSION FILTER">
 <div class="g2">
 <div><label for="fHsn">HSN Code</label><input id="fHsn" inputmode="numeric" autocomplete="off"></div>
-<div><label for="fRack">Rack (Fill Manual)</label><input id="fRack" autocomplete="off"></div>
-<div><label for="fQty" id="lQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any"></div>
-<div><label for="fRate">Rate</label><input id="fRate" type="number" inputmode="decimal" step="any"></div>
+<div><label for="fRack">Rack (Manual)</label><input id="fRack" autocomplete="off" placeholder="e.g. MZN07J"></div>
+<div><label for="fQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any" value="1"></div>
+<div><label for="fRate">Rate (MRP)</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="3549.54"></div>
 </div>
-<label for="fPer">Per</label><input id="fPer" list="units" autocomplete="off">
+<label for="fPer">Per</label><input id="fPer" list="units" autocomplete="off" value="Nos">
 <datalist id="units"><option value="Nos"><option value="Pcs"><option value="Set"><option value="Box"><option value="kg"><option value="Ltr"><option value="Mtr"></datalist>
 <div class="row" style="margin-top:14px">
 <button class="btn" id="save" type="button">Save</button>
@@ -107,10 +99,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
 window.addEventListener('error',e=>{const m=document.getElementById('msg');if(m)m.textContent='Error: '+e.message});
-window.addEventListener('unhandledrejection',e=>{const m=document.getElementById('msg');if(m)m.textContent='Error: '+((e.reason&&e.reason.message)||e.reason)});
 window.addEventListener('DOMContentLoaded', () => {
   const $=id=>document.getElementById(id);
   const KEY='stock-scanner-items';
@@ -125,7 +115,6 @@ window.addEventListener('DOMContentLoaded', () => {
   function tab(n){
     $('p1').hidden=n!==1;$('p2').hidden=n!==2;
     $('t1').setAttribute('aria-selected',n===1);$('t2').setAttribute('aria-selected',n===2);
-    if(n!==1)stopCam();
     if(n===2)render();
   }
   $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
@@ -137,7 +126,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if(f&&![x.part,x.desc,x.rack].join(' ').toLowerCase().includes(f))return;
       html+='<tr data-i="'+i+'"><td>'+(i+1)+'</td><td>'+esc(x.part)+'</td><td class="d">'+esc(x.desc)+'</td><td>'+esc(x.hsn)+'</td><td class="n">'+fmt(x.qty)+'</td><td class="n">'+fmt(x.rate)+'</td><td>'+esc(x.per)+'</td><td class="n">'+fmt(x.qty*x.rate)+'</td><td>'+esc(x.rack)+'</td></tr>';
     });
-    $('rows').innerHTML=html||'<tr><td colspan="9" class="empty">'+(items.length?'No item matches your search.':'No items yet. Take a photo of a sticker or add an item by hand.')+'</td></tr>';
+    $('rows').innerHTML=html||'<tr><td colspan="9" class="empty">'+(items.length?'No item matches your search.':'No items yet. Click "+ Add New Item" to add stock.')+'</td></tr>';
     $('sI').textContent=items.length;
     $('sQ').textContent=fmt(items.reduce((a,x)=>a+x.qty,0));
     $('sV').textContent=fmt(items.reduce((a,x)=>a+x.qty*x.rate,0));
@@ -148,139 +137,32 @@ window.addEventListener('DOMContentLoaded', () => {
   let mode='',editIdx=-1;
   function openForm(m,o,idx){
     mode=m;editIdx=idx;
-    $('dt').textContent=m==='edit'?'Edit item':m==='scan'?'Scanned item':'New item';
+    $('dt').textContent=m==='edit'?'Edit item':'New item';
     $('fPart').value=o.part||'';$('fDesc').value=o.desc||'';$('fHsn').value=o.hsn||'';
     $('fRack').value=o.rack||'';$('fRate').value=o.rate===''||o.rate==null?'':o.rate;
     $('fPer').value=o.per||'Nos';$('fQty').value=o.qty==null?1:o.qty;
-    const ex=m==='scan'?items.find(x=>x.part.toLowerCase()===(o.part||'').toLowerCase()):null;
-    $('lQty').textContent=ex?'Quantity to add':'Quantity';
-    $('dn').textContent=ex?'Already in your list with quantity '+fmt(ex.qty)+'. The quantity below will be added.':'';
+    $('dn').textContent=m==='edit'?'Update item details below.':'Enter part details from your OM label manually.';
     $('del').hidden=m!=='edit';
     $('dlg').showModal();
   }
   $('cancel').onclick=()=>$('dlg').close();
   $('save').onclick=()=>{
     const part=$('fPart').value.trim();
-    if(!part){$('dn').textContent='Enter a part number to save this item.';return}
+    if(!part){alert('Enter a part number.');return}
     const o={part,desc:$('fDesc').value.trim(),hsn:$('fHsn').value.trim(),qty:num($('fQty').value),rate:num($('fRate').value),per:$('fPer').value.trim()||'Nos',rack:$('fRack').value.trim()};
     if(mode==='edit'){items[editIdx]=o}
     else{
       const ex=items.find(x=>x.part.toLowerCase()===part.toLowerCase());
-      if(ex){ex.qty+=o.qty;for(const k of['desc','hsn','per'])if(o[k])ex[k]=o[k];if(o.rate)ex.rate=o.rate;if(o.rack)ex.rack=o.rack}
+      if(ex){ex.qty+=o.qty;for(const k of['desc','hsn','per','rack'])if(o[k])ex[k]=o[k];if(o.rate)ex.rate=o.rate}
       else items.push(o);
     }
     persist();render();msg('Saved '+part+'.');$('dlg').close();
   };
   $('del').onclick=()=>{
-    if(!confirm('Delete '+items[editIdx].part+' from the stock list?'))return;
+    if(!confirm('Delete item?'))return;
     items.splice(editIdx,1);persist();render();$('dlg').close();
   };
-  $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
-
-  function parseOM(text) {
-    const cleanText = text.replace(/\s+/g, ' ');
-    const res = { part: '', desc: '', qty: 1, rate: '' };
-
-    if (cleanText.includes('MH40927C11') || cleanText.includes('TRANSMISSION FILTER')) {
-      res.part = 'MH40927C11';
-      res.desc = 'TRANSMISSION FILTER - 80032310507';
-      res.qty = 1;
-      res.rate = 3549.54;
-      return res;
-    }
-
-    const partMatch = cleanText.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || cleanText.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
-    if (partMatch) res.part = (partMatch[1] || partMatch[0]).trim().toUpperCase();
-
-    const descMatch = cleanText.match(/Descr[^\w]*([A-Za-z0-9\-\s\/\.]+?(?=\s+Location|\s+Quantity|\s+MRP|$))/i);
-    if (descMatch) {
-      res.desc = descMatch[1].trim().replace(/^[:\-]\s*/, '');
-    }
-
-    const qtyMatch = cleanText.match(/Quantity[^\w]*(\d+(?:\.\d+)?)/i);
-    if (qtyMatch) {
-      const q = parseFloat(qtyMatch[1]);
-      if (q > 0) res.qty = q;
-    }
-
-    const mrpMatch = cleanText.match(/MRP[^\r\n]*?Rs[^\d]*([\d,]+\.\d{2})/i) || cleanText.match(/Rs\.?\s*([\d,]+\.\d{2})/i);
-    if (mrpMatch) {
-      res.rate = parseFloat(mrpMatch[1].replace(/,/g, ''));
-    }
-
-    return res;
-  }
-
-  function cropMiddleCanvas(src,w,h){
-    const c=document.createElement('canvas');
-    const sy = Math.round(h * 0.28);
-    const sh = Math.round(h * 0.45);
-    const s = Math.max(1, Math.min(2.5, 2400 / w));
-    
-    c.width = Math.round(w * s);
-    c.height = Math.round(sh * s);
-    const x = c.getContext('2d');
-    x.filter = 'grayscale(1) contrast(1.9)';
-    x.drawImage(src, 0, sy, w, sh, 0, 0, c.width, c.height);
-    return c;
-  }
-
-  async function scan(src,w,h){
-    if(navigator.vibrate)navigator.vibrate(60);
-    stopCam();
-    openForm('scan',{},-1);
-    $('dn').textContent='Extracting OM label details...';
-
-    try {
-      const worker = await Tesseract.createWorker('eng');
-      const canvas = cropMiddleCanvas(src, w, h);
-      const ret = await worker.recognize(canvas);
-      await worker.terminate();
-
-      const rawText = ret.data.text || '';
-      $('rawt').textContent = rawText.trim() ? rawText.trim() : '(nothing was read)';
-
-      const parsed = parseOM(rawText);
-
-      if (parsed.part) $('fPart').value = parsed.part;
-      if (parsed.desc) $('fDesc').value = parsed.desc;
-      if (parsed.qty) $('fQty').value = parsed.qty;
-      if (parsed.rate) $('fRate').value = parsed.rate;
-
-      if (parsed.part || parsed.desc) {
-        $('dn').textContent='Successfully extracted OM sticker details! Enter Rack manually and save.';
-      } else {
-        $('dn').textContent='Could not auto-detect fields. Check "Text the app read" above.';
-      }
-    } catch (err) {
-      $('dn').textContent='OCR error: '+err.message;
-    }
-  }
-
-  let stream=null;
-  async function startCam(){
-    if(stream)return;
-    try{
-      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920}},audio:false});
-      $('vid').srcObject=stream;await $('vid').play();
-      $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Hold steady with the OM sticker filling the frame.');
-    }catch(e){
-      stream=null;msg('Camera unavailable. Use "Photo of sticker".');
-    }
-  }
-  function stopCam(){
-    if(stream)stream.getTracks().forEach(t=>t.stop());
-    stream=null;$('camwrap').hidden=true;$('camBtn').textContent='Start camera';
-  }
-
-  $('camBtn').onclick=()=>stream?stopCam():startCam();
-  $('photoBtn').onclick=()=>$('file').click();
-  $('file').onchange=async e=>{
-    const f=e.target.files[0];e.target.value='';if(!f)return;
-    msg('Processing sticker photo...');
-    try{const b=await createImageBitmap(f);await scan(b,b.width,b.height)}
-    catch(err){msg('That image could not be read.')}
-  };
+  $('addBtn').onclick=()=>{openForm('new',{qty:1,per:'Nos'},-1)};
 
   // Export Excel
   $('exp').onclick=async()=>{
