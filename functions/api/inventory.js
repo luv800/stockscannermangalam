@@ -1,6 +1,6 @@
 export async function onRequest(context) {
   const { request, env } = context;
-  const db = env.DB; // Corresponds to your D1 database binding "stock-db"
+  const db = env.DB;
   const url = new URL(request.url);
 
   const corsHeaders = {
@@ -14,22 +14,17 @@ export async function onRequest(context) {
   }
 
   try {
-    // GET: Fetch all inventory items
     if (request.method === "GET") {
       const { results } = await db.prepare("SELECT * FROM stock_items ORDER BY id DESC").all();
       return Response.json(results, { headers: corsHeaders });
     }
 
-    // POST: Insert or update an inventory item
     if (request.method === "POST") {
       const body = await request.json();
       const { part, desc, hsn, qty, rate, per, rack } = body;
 
       if (!part) {
-        return new Response(JSON.stringify({ error: "Part number is required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        });
+        return Response.json({ error: "Part number is required" }, { status: 400, headers: corsHeaders });
       }
 
       const existing = await db.prepare("SELECT * FROM stock_items WHERE LOWER(part) = LOWER(?)").bind(part).first();
@@ -53,24 +48,21 @@ export async function onRequest(context) {
         `).bind(part, desc || '', hsn || '', qty || 1, rate || 0, per || 'Nos', rack || '').run();
       }
 
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return Response.json({ success: true }, { headers: corsHeaders });
     }
 
-    // DELETE: Remove an item by part number
     if (request.method === "DELETE") {
       const part = url.searchParams.get("part");
       if (!part) {
-        return new Response(JSON.stringify({ error: "Part parameter required" }), { status: 400, headers: corsHeaders });
+        return Response.json({ error: "Part parameter required" }, { status: 400, headers: corsHeaders });
       }
       await db.prepare("DELETE FROM stock_items WHERE LOWER(part) = LOWER(?)").bind(part).run();
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return Response.json({ success: true }, { headers: corsHeaders });
     }
 
     return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
+    // This will return the exact database/syntax error to your frontend alert!
+    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
   }
 }
