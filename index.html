@@ -45,7 +45,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v9</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v10</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -88,7 +88,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <dialog id="dlg">
 <h2 id="dt" style="margin:0 0 4px;font-size:18px"></h2>
 <div id="dn" class="mu"></div>
-<details id="raw" hidden><summary class="mu">Text the app read</summary><pre id="rawt" style="white-space:pre-wrap;font-size:12px;margin:6px 0 0"></pre></details>
+<details id="raw"><summary class="mu">Text the app read (Tap to check)</summary><pre id="rawt" style="white-space:pre-wrap;font-size:12px;margin:6px 0 0;max-height:100px;overflow-y:auto;background:var(--bg);padding:6px;border-radius:6px"></pre></details>
 <label for="fPart">Part Number</label><input id="fPart" autocomplete="off">
 <label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off">
 <div class="g2">
@@ -106,7 +106,6 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </div>
 </dialog>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
@@ -156,7 +155,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const ex=m==='scan'?items.find(x=>x.part.toLowerCase()===(o.part||'').toLowerCase()):null;
     $('lQty').textContent=ex?'Quantity to add':'Quantity';
     $('dn').textContent=ex?'Already in your list with quantity '+fmt(ex.qty)+'. The quantity below will be added.':'';
-    $('del').hidden=m!=='edit';$('raw').hidden=true;
+    $('del').hidden=m!=='edit';
     $('dlg').showModal();
   }
   $('cancel').onclick=()=>$('dlg').close();
@@ -178,51 +177,66 @@ window.addEventListener('DOMContentLoaded', () => {
   };
   $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
 
-  // Parse OM label mapping (Rack is intentionally left out for manual entry)
+  // Robust flexible OCR parser for OM KION labels
   function parseLabel(t){
     const o={part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1};
-    const L=t.split(/\n/).map(s=>s.replace(/¢/g,'C').trim()).filter(Boolean);
-    const numTxt=v=>{v=String(v);return num(v.replace(/,(?=\d{3}\b)/g,'').replace(',','.').replace(/[^\d.]/g,''))};
+    const lines=t.split(/\n/).map(s=>s.trim()).filter(Boolean);
+    const cleanNum=v=>num(v.replace(/,/g,'').replace(/[^\d.]/g,''));
 
-    for(let i=0;i<L.length;i++){
-      const l=L[i],nx=L[i+1]||'';
+    for(let i=0; i<lines.length; i++){
+      let l=lines[i];
+      let upper=l.toUpperCase();
 
-      // 1. Part No -> Part Number
-      if(!o.part && /\bPart\s*No\b/i.test(l)){
-        const m=l.match(/[:\-]?\s*([A-Za-z0-9\-]{4,})/);
-        if(m) o.part=m[1].toUpperCase();
-        else if(nx) o.part=nx.replace(/[^A-Za-z0-9\-]/g,'').toUpperCase();
+      // Part Number extraction (Matches MH... or alphanumeric part patterns)
+      if(!o.part && (upper.includes('PART') || upper.includes('MAT') || upper.includes('NO'))) {
+        let match = l.match(/[:\-]\s*([A-Za-z0-9\-]{5,})/);
+        if(!match && lines[i+1]) match = lines[i+1].match(/([A-Za-z0-9\-]{5,})/);
+        if(match) o.part = match[1].toUpperCase();
       }
 
-      // 2. Descr -> Description of Goods
-      if(!o.desc && /\bDescr\.?/i.test(l)){
-        const m=l.match(/[:\-]?\s*(.{3,})/);
-        if(m && m[1].trim().length>2) o.desc=m[1].trim().replace(/^[:\-]\s*/,'');
-        else if(nx) o.desc=nx.trim();
+      // Description extraction (Matches TRANSMISSION FILTER or similar text lines)
+      if(!o.desc && (upper.includes('DESCR') || upper.includes('FILTER') || upper.includes('ASSY') || upper.includes('KIT'))) {
+        let textPart = l.replace(/^.*?(?:Descr\.?|Description)[:\-]?/i, '').trim();
+        if(textPart.length < 3 && lines[i+1]) textPart = lines[i+1];
+        if(textPart.length > 2) o.desc = textPart;
       }
 
-      // 3. Quantity -> Quantity
-      if(o.qty===1 && /\bQuantity\b/i.test(l)){
-        const m=l.match(/[:\-]?\s*(\d+(?:[.,]\d+)?)/);
-        if(m) o.qty=numTxt(m[1]);
-        else if(nx) {const n=numTxt(nx);if(n>0) o.qty=n;}
+      // Quantity extraction
+      if(o.qty === 1 && (upper.includes('QUANTITY') || upper.includes('QTY'))) {
+        let match = l.match(/[:\-]\s*(\d+(?:\.\d+)?)/);
+        if(!match && lines[i+1]) match = lines[i+1].match(/(\d+(?:\.\d+)?)/);
+        if(match) {
+          let q = cleanNum(match[1]);
+          if(q > 0) o.qty = q;
+        }
       }
 
-      // 4. MRP (Incl. of all taxes) -> Rate
-      if(!o.rate && /\bMRP\b/i.test(l)){
-        const rest=(l+' '+nx).replace(/[^0-9.,]/g,' ');
-        const matches=rest.match(/(\d{1,6}[.,]\d{2})/g);
-        if(matches && matches.length>0){
-          o.rate=num(matches[matches.length-1].replace(',','.'));
+      // MRP / Rate extraction
+      if(!o.rate && (upper.includes('MRP') || upper.includes('RS') || upper.includes('TAXES'))) {
+        let combined = l + ' ' + (lines[i+1] || '');
+        let matches = combined.match(/(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+[\.,]\d{2})/g);
+        if(matches && matches.length > 0) {
+          // Pick the last realistic price value found in the MRP line
+          let val = cleanNum(matches[matches.length - 1]);
+          if(val > 1) o.rate = val;
         }
       }
     }
+
+    // Fallback search if specific labels weren't caught cleanly
+    if(!o.part) {
+      for(let l of lines) {
+        let m = l.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
+        if(m) { o.part = m[1].toUpperCase(); break; }
+      }
+    }
+
     return o;
   }
 
   let wk=null,ocrErr='',reading=false;
   function getWorker(){
-    if(!wk)wk=Tesseract.createWorker('eng',1,{logger:m=>{if(reading&&m&&m.status&&$('dlg').open)$('dn').textContent='Reading sticker: '+m.status}}).then(async w=>{await w.setParameters({tessedit_pageseg_mode:'4'});return w});
+    if(!wk)wk=Tesseract.createWorker('eng',1,{logger:m=>{if(reading&&m&&m.status&&$('dlg').open)$('dn').textContent='Reading sticker: '+m.status}}).then(async w=>{await w.setParameters({tessedit_pageseg_mode:'3'});return w});
     return wk;
   }
   async function ocr(canvas){
@@ -233,9 +247,9 @@ window.addEventListener('DOMContentLoaded', () => {
   const T=(p,ms=90000)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(''),ms))]);
 
   function fullCanvas(src,w,h){
-    const s=Math.max(0.5,Math.min(2,2000/w));
+    const s=Math.max(1,Math.min(2.5,2400/w));
     const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
-    const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.6)';x.drawImage(src,0,0,c.width,c.height);
+    const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.8)';x.drawImage(src,0,0,c.width,c.height);
     return c;
   }
 
@@ -243,34 +257,26 @@ window.addEventListener('DOMContentLoaded', () => {
     if(navigator.vibrate)navigator.vibrate(60);
     stopCam();
     openForm('scan',{},-1);
-    $('dn').textContent='Extracting fields from OM sticker label...';
+    $('dn').textContent='Extracting fields from OM sticker...';
     reading=true;ocrErr='';
 
-    const t1=await T(ocr(fullCanvas(src,w,h)));
-    let lab=parseLabel(t1),raw=t1;
+    const rawText=await T(ocr(fullCanvas(src,w,h)));
+    let lab=parseLabel(rawText);
 
     reading=false;
-    $('rawt').textContent=raw.trim()?raw.trim():'(nothing was read)';$('raw').hidden=false;
-    if(!$('dlg').open||mode!=='scan')return;
-
+    $('rawt').textContent=rawText.trim()?rawText.trim():'(nothing was read)';
+    
     let any=false;
     const put=(id,v)=>{if(v!==undefined&&v!==''&&!$(id).value.trim()){$(id).value=v;any=true}};
-    put('fPart',lab.part);put('fDesc',lab.desc);put('fRate',lab.rate);
+    put('fPart',lab.part);
+    put('fDesc',lab.desc);
+    put('fRate',lab.rate);
     if(lab.qty && lab.qty!==1){$('fQty').value=lab.qty;any=true}
 
-    const p=$('fPart').value.trim().toLowerCase();
-    const ex=p?items.find(x=>x.part.toLowerCase()===p):null;
-    if(ex){
-      if(!$('fDesc').value.trim())$('fDesc').value=ex.desc;
-      if(!$('fHsn').value.trim())$('fHsn').value=ex.hsn;
-      if(!$('fRate').value.trim()&&ex.rate)$('fRate').value=ex.rate;
-      if(!$('fRack').value.trim())$('fRack').value=ex.rack;
-      $('lQty').textContent='Quantity to add';
-      $('dn').textContent='Already in your list with quantity '+fmt(ex.qty)+'. The quantity below will be added.';
-    }else if(any){
-      $('dn').textContent='Parsed successfully! Fill in the Rack manually and save.';
+    if(any){
+      $('dn').textContent='Auto-filled successfully! Enter Rack manually and save.';
     }else{
-      $('dn').textContent=ocrErr?'Text reader failed: '+ocrErr:'Could not match sticker fields automatically. Check "Text the app read" below.';
+      $('dn').textContent='Could not auto-fill automatically. Tap "Text the app read" above to check what was read, or fill manually.';
     }
   }
 
