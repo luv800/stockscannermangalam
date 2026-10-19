@@ -99,7 +99,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <div><label for="fHsn">HSN CODE</label><input id="fHsn" autocomplete="off" placeholder="Auto-fetched"></div>
 <div><label for="fRack">Rack</label><input id="fRack" autocomplete="off" placeholder="e.g. MZN07J"></div>
 <div><label for="fQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any" value="1"></div>
-<div><label for="fRate">Rate (MRP Incl. of all taxes)</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="From sticker MRP"></div>
+<div><label for="fRate">Rate</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="Rate"></div>
 </div>
 <label for="fPer">Per (Unit)</label><input id="fPer" list="units" autocomplete="off" value="Nos">
 <datalist id="units"><option value="Nos"><option value="Pcs"><option value="Set"><option value="Box"><option value="kg"><option value="Ltr"><option value="Mtr"></datalist>
@@ -195,7 +195,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     $('fPart').value=o.part||'';$('fDesc').value=o.desc||'';$('fHsn').value=o.hsn||'';
     $('fRack').value=o.rack||'';$('fRate').value=o.rate===''||o.rate==null?'':o.rate;
     $('fPer').value=o.per||'Nos';$('fQty').value=o.qty==null?1:o.qty;
-    $('dn').textContent='Part numbers verified against latest price list. Rate taken from sticker MRP.';
+    $('dn').textContent='Part numbers verified against price list. Rate populated from sticker MRP.';
     $('del').hidden=m!=='edit';
     $('dlg').showModal();
   }
@@ -267,20 +267,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Precise OCR parser extracting Part No, Quantity, and Sticker MRP Rate (Incl. of all taxes)
+  // Extract Part Number, Quantity, and Sticker MRP Rate directly into Rate field
   function parseTTO(text) {
     const clean = text.replace(/\s+/g, ' ');
     const res = { part: '', qty: 1, rate: '' };
     
-    // Part Number extraction
     const pMatch = clean.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || clean.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
     if (pMatch) res.part = (pMatch[1] || pMatch[0]).trim().toUpperCase();
     
-    // Quantity extraction
     const qMatch = clean.match(/Quantity[^\w]*(\d+(?:\.\d+)?)/i);
     if (qMatch) { const q = parseFloat(qMatch[1]); if (q > 0) res.qty = q; }
 
-    // MRP / Rate (Incl. of all taxes) extraction from sticker text
     const mrpMatch = clean.match(/(?:MRP|Retail|Rate)[^\d]*([\d,]+\.\d{2})/i) || clean.match(/Rs\.?\s*([\d,]+\.\d{2})/i) || clean.match(/\b(\d{2,6}\.\d{2})\b/);
     if (mrpMatch) {
       res.rate = parseFloat((mrpMatch[1] || mrpMatch[0]).replace(/,/g, ''));
