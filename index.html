@@ -59,7 +59,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button class="btn alt" id="addBtn" type="button">Add item by hand</button>
 </div>
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
-<div id="msg" class="mu" role="status">App loaded successfully. Ready.</div>
+<div id="msg" class="mu" role="status">Ready.</div>
 <div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="frame"></div></div>
 </div>
 </section>
@@ -208,14 +208,17 @@ window.addEventListener('DOMContentLoaded', () => {
     openForm('scan',o,-1);
   }
 
+  // Full-resolution high-density industrial QR code decoder
   const det='BarcodeDetector' in window?new BarcodeDetector():null;
   const cv=document.createElement('canvas');
   async function decode(src,w,h){
     if(det){try{const r=await det.detect(src);if(r.length)return r[0].rawValue}catch(e){}}
     if(window.jsQR){
-      const s=Math.min(1,720/w);cv.width=Math.round(w*s);cv.height=Math.round(h*s);
-      const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,cv.width,cv.height);
-      const d=x.getImageData(0,0,cv.width,cv.height);const q=jsQR(d.data,d.width,d.height);
+      cv.width=w;cv.height=h;
+      const x=cv.getContext('2d',{willReadFrequently:true});
+      x.drawImage(src,0,0,w,h);
+      const d=x.getImageData(0,0,w,h);
+      const q=jsQR(d.data,d.width,d.height);
       if(q)return q.data;
     }
     return null;
@@ -226,11 +229,14 @@ window.addEventListener('DOMContentLoaded', () => {
     if(stream)return;
     try{
       stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-      $('vid').srcObject=stream;await $('vid').play();
+      const v=$('vid');
+      v.srcObject=stream;
+      await v.play();
+      while(v.videoWidth===0){await new Promise(r=>setTimeout(r,50));}
       $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Point the camera at a QR code.');tick();
     }catch(e){
       stream=null;
-      msg('Live camera is blocked. Tap Take photo to scan instead.');
+      msg('Live camera is blocked. Use "Take photo to scan" instead.');
     }
   }
   function stopCam(){
@@ -256,7 +262,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try{
       const b=await createImageBitmap(f);
       const r=await decode(b,b.width,b.height);
-      if(r){stopCam();got(r)}else msg('No QR code found in that photo.');
+      if(r){stopCam();got(r)}else msg('No QR code found in that photo. Try getting closer or ensuring good lighting.');
     }catch(err){msg('That image could not be read.')}
   };
 
