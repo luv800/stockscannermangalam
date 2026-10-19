@@ -42,7 +42,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner (Cloud D1) <span class="mu" style="font-weight:400">v24</span></h1>
+<h1>Stock Scanner (Cloud D1) <span class="mu" style="font-weight:400">v25</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan / Add</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -117,6 +117,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/invantory');
       if (res.ok) {
         items = await res.json();
+        if (!Array.isArray(items)) items = [];
         render();
         msg('Ready. Connected to Cloudflare D1 Database.');
       } else {
@@ -173,8 +174,8 @@ window.addEventListener('DOMContentLoaded', () => {
     });
     $('rows').innerHTML = html || '<tr><td colspan="9" class="empty">' + (items.length ? 'No item matches your search.' : 'No items in cloud. Scan a TTO sticker or add by hand.') + '</td></tr>';
     $('sI').textContent = items.length;
-    $('sQ').textContent = fmt(items.reduce((a, x) => a + x.qty, 0));
-    $('sV').textContent = fmt(items.reduce((a, x) => a + x.qty * x.rate, 0));
+    $('sQ').textContent = fmt(items.reduce((a, x) => a + (x.qty || 0), 0));
+    $('sV').textContent = fmt(items.reduce((a, x) => a + ((x.qty || 0) * (x.rate || 0)), 0));
   }
   $('q').oninput = render;
   $('rows').onclick = e => { const r = e.target.closest('tr[data-i]'); if (r) openForm('edit', items[+r.dataset.i], +r.dataset.i); };
@@ -190,12 +191,21 @@ window.addEventListener('DOMContentLoaded', () => {
     $('del').hidden = m !== 'edit';
     $('dlg').showModal();
   }
+  
   $('cancel').onclick = () => $('dlg').close();
   
   $('save').onclick = async () => {
     const part = $('fPart').value.trim();
     if (!part) { alert('Enter a part number.'); return; }
-    const o = { part, desc: $('fDesc').value.trim(), hsn: $('fHsn').value.trim(), qty: num($('fQty').value), rate: num($('fRate').value), per: $('fPer'].value.trim() || 'Nos', rack: $('fRack').value.trim() };
+    const o = { 
+      part, 
+      desc: $('fDesc').value.trim(), 
+      hsn: $('fHsn').value.trim(), 
+      qty: num($('fQty').value), 
+      rate: num($('fRate').value), 
+      per: $('fPer').value.trim() || 'Nos', 
+      rack: $('fRack').value.trim() 
+    };
     
     msg('Saving to cloud database...');
     try {
@@ -209,6 +219,7 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   $('del').onclick = async () => {
+    if (editIdx < 0 || !items[editIdx]) return;
     const part = items[editIdx].part;
     if (!confirm('Delete ' + part + ' from cloud database?')) return;
     try {
@@ -293,7 +304,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!items.length) { alert('No items to export.'); return; }
     const rows = [['Sr. No.', 'Part Number', 'Description of Goods', 'HSN Code', 'Quantity', 'Rate', 'Per', 'Amount', 'Rack']];
     items.forEach((x, i) => rows.push([i + 1, x.part, x.desc, x.hsn, x.qty, x.rate, x.per, x.qty * x.rate, x.rack]));
-    rows.push(['', '', '', 'Total', items.reduce((a, x) => a + x.qty, 0), '', '', items.reduce((a, x) => a + x.qty * x.rate, 0), '']);
+    rows.push(['', '', '', 'Total', items.reduce((a, x) => a + (x.qty || 0), 0), '', '', items.reduce((a, x) => a + ((x.qty || 0) * (x.rate || 0)), 0), '']);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stock');
@@ -329,7 +340,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       msg('Successfully imported all items to cloud!');
     } catch (err) {
-      alert('Could not parse or import Excel file.');
+      alert('Could not parse or import Excel file: ' + err.message);
     }
   };
 
