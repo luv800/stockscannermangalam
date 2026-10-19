@@ -23,7 +23,7 @@ h1{font-size:22px;margin:4px 0 12px}
 .mu{color:var(--mu);font-size:14px}
 #camwrap{position:relative;margin-top:12px;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:4/3}
 #camwrap video{width:100%;height:100%;object-fit:cover;display:block}
-.frame{position:absolute;inset:18% 18%;border:3px solid var(--hi);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+.frame{position:absolute;inset:10% 10%;border:3px solid var(--hi);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .stat{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
 .stat b{display:block;font-size:20px}
@@ -45,7 +45,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v6</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v9</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -59,7 +59,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button class="btn alt" id="addBtn" type="button">Add item by hand</button>
 </div>
 <input type="file" id="file" accept="image/*" hidden>
-<div id="msg" class="mu" role="status">Ready. Tap Photo of sticker and fill the frame with the sticker.</div>
+<div id="msg" class="mu" role="status">Ready. Tap "Photo of sticker" to capture your OM label.</div>
 <div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="frame"></div></div>
 </div>
 </section>
@@ -93,7 +93,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off">
 <div class="g2">
 <div><label for="fHsn">HSN Code</label><input id="fHsn" inputmode="numeric" autocomplete="off"></div>
-<div><label for="fRack">Rack</label><input id="fRack" autocomplete="off"></div>
+<div><label for="fRack">Rack (Fill Manual)</label><input id="fRack" autocomplete="off"></div>
 <div><label for="fQty" id="lQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any"></div>
 <div><label for="fRate">Rate</label><input id="fRate" type="number" inputmode="decimal" step="any"></div>
 </div>
@@ -138,7 +138,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if(f&&![x.part,x.desc,x.rack].join(' ').toLowerCase().includes(f))return;
       html+='<tr data-i="'+i+'"><td>'+(i+1)+'</td><td>'+esc(x.part)+'</td><td class="d">'+esc(x.desc)+'</td><td>'+esc(x.hsn)+'</td><td class="n">'+fmt(x.qty)+'</td><td class="n">'+fmt(x.rate)+'</td><td>'+esc(x.per)+'</td><td class="n">'+fmt(x.qty*x.rate)+'</td><td>'+esc(x.rack)+'</td></tr>';
     });
-    $('rows').innerHTML=html||'<tr><td colspan="9" class="empty">'+(items.length?'No item matches your search.':'No items yet. Scan a QR code or add an item by hand.')+'</td></tr>';
+    $('rows').innerHTML=html||'<tr><td colspan="9" class="empty">'+(items.length?'No item matches your search.':'No items yet. Take a photo of a sticker or add an item by hand.')+'</td></tr>';
     $('sI').textContent=items.length;
     $('sQ').textContent=fmt(items.reduce((a,x)=>a+x.qty,0));
     $('sV').textContent=fmt(items.reduce((a,x)=>a+x.qty*x.rate,0));
@@ -167,7 +167,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if(mode==='edit'){items[editIdx]=o}
     else{
       const ex=items.find(x=>x.part.toLowerCase()===part.toLowerCase());
-      if(ex){ex.qty+=o.qty;for(const k of['desc','hsn','per','rack'])if(o[k])ex[k]=o[k];if(o.rate)ex.rate=o.rate}
+      if(ex){ex.qty+=o.qty;for(const k of['desc','hsn','per'])if(o[k])ex[k]=o[k];if(o.rate)ex.rate=o.rate;if(o.rack)ex.rack=o.rack}
       else items.push(o);
     }
     persist();render();msg('Saved '+part+'.');$('dlg').close();
@@ -178,61 +178,51 @@ window.addEventListener('DOMContentLoaded', () => {
   };
   $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
 
-  // QR on OM labels reads like: 1.000/4943888379/0007/066  (qty / number / number / code)
-  function parseQR(t){
-    t=t.trim();
-    const o={part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1,box:''};
-    const p=t.split('/').map(s=>s.trim());
-    if(p.length>=3&&/^\d+(\.\d+)?$/.test(p[0])){o.qty=num(p[0])||1;o.per='Pcs';o.box=p[1]+p[2];return o}
-    if(t.includes('|')){
-      const q=t.split('|').map(s=>s.trim());
-      o.part=q[0]||'';o.desc=q[1]||'';o.hsn=q[2]||'';o.rate=q[3]||'';o.per=q[4]||'Nos';o.rack=q[5]||'';
-      return o;
-    }
-    o.part=t;return o;
-  }
-
-  // Sticker text -> fields: Part No (or Mat.) / Descr / Quantity (or Qty.) / MRP
+  // Parse OM label mapping (Rack is intentionally left out for manual entry)
   function parseLabel(t){
-    const o={};
+    const o={part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1};
     const L=t.split(/\n/).map(s=>s.replace(/¢/g,'C').trim()).filter(Boolean);
-    const numTxt=v=>{v=String(v);const z=v.match(/^(\d+)[.,]0{3}$/);if(z)return num(z[1]);return num(v.replace(/,(?=\d{3}\b)/g,'').replace(',','.'))};
+    const numTxt=v=>{v=String(v);return num(v.replace(/,(?=\d{3}\b)/g,'').replace(',','.').replace(/[^\d.]/g,''))};
+
     for(let i=0;i<L.length;i++){
       const l=L[i],nx=L[i+1]||'';
-      if(!o.part){
-        let m=l.match(/\bP(?:art)?[\s.\/]*(?:No|Number|#)\b\.?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/.]{2,})/i);
-        if(!m)m=l.match(/\bMat\b\.?\s*[:\-]?\s*([A-Za-z0-9]{6,})/i);
-        if(m)o.part=m[1].toUpperCase();
+
+      // 1. Part No -> Part Number
+      if(!o.part && /\bPart\s*No\b/i.test(l)){
+        const m=l.match(/[:\-]?\s*([A-Za-z0-9\-]{4,})/);
+        if(m) o.part=m[1].toUpperCase();
+        else if(nx) o.part=nx.replace(/[^A-Za-z0-9\-]/g,'').toUpperCase();
       }
-      if(!o.desc){
-        const m=l.match(/\bDesc(?:r|ription)?\b\.?\s*[:\-]?\s*(.{3,})/i);
-        if(m)o.desc=m[1].trim().slice(0,80);
+
+      // 2. Descr -> Description of Goods
+      if(!o.desc && /\bDescr\.?/i.test(l)){
+        const m=l.match(/[:\-]?\s*(.{3,})/);
+        if(m && m[1].trim().length>2) o.desc=m[1].trim().replace(/^[:\-]\s*/,'');
+        else if(nx) o.desc=nx.trim();
       }
-      if(!o.qty){const m=l.match(/\b(?:Quantity|Qty)\b\.?\s*[:\-]?\s*(\d+(?:[.,]\d+)?)/i);if(m)o.qty=numTxt(m[1])}
-      if(!o.rate&&/\bM\.?R\.?P\b/i.test(l)){
-        const rest=(l.replace(/^.*?\bM\.?R\.?P\b\.?/i,'')+' '+nx).replace(/\([^)]*\)?/g,' ');
-        const m=rest.match(/(\d[\d,]*(?:\.\d+)?)/);
-        if(m)o.rate=num(m[1].replace(/,/g,''));
+
+      // 3. Quantity -> Quantity
+      if(o.qty===1 && /\bQuantity\b/i.test(l)){
+        const m=l.match(/[:\-]?\s*(\d+(?:[.,]\d+)?)/);
+        if(m) o.qty=numTxt(m[1]);
+        else if(nx) {const n=numTxt(nx);if(n>0) o.qty=n;}
+      }
+
+      // 4. MRP (Incl. of all taxes) -> Rate
+      if(!o.rate && /\bMRP\b/i.test(l)){
+        const rest=(l+' '+nx).replace(/[^0-9.,]/g,' ');
+        const matches=rest.match(/(\d{1,6}[.,]\d{2})/g);
+        if(matches && matches.length>0){
+          o.rate=num(matches[matches.length-1].replace(',','.'));
+        }
       }
     }
     return o;
   }
 
-  // Crop the label area around the QR code (text sits to the left of it) for OCR
-  function cropLabel(src,w,h,b){
-    const q=Math.max(b.x1-b.x0,b.y1-b.y0);
-    const cx0=Math.max(0,b.x0-4.4*q),cx1=Math.min(w,b.x1+0.15*q);
-    const cy0=Math.max(0,b.y0-0.8*q),cy1=Math.min(h,b.y1+0.45*q);
-    const cw=cx1-cx0,ch=cy1-cy0;
-    const s=Math.max(1,Math.min(3,1800/cw));
-    const c=document.createElement('canvas');c.width=Math.round(cw*s);c.height=Math.round(ch*s);
-    const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.4)';
-    x.drawImage(src,cx0,cy0,cw,ch,0,0,c.width,c.height);
-    return c;
-  }
   let wk=null,ocrErr='',reading=false;
   function getWorker(){
-    if(!wk)wk=Tesseract.createWorker('eng',1,{logger:m=>{if(reading&&m&&m.status&&$('dlg').open)$('dn').textContent='Reading the sticker: '+m.status+(typeof m.progress==='number'?' '+Math.round(m.progress*100)+'%':'')}}).then(async w=>{await w.setParameters({tessedit_pageseg_mode:'4'});return w});
+    if(!wk)wk=Tesseract.createWorker('eng',1,{logger:m=>{if(reading&&m&&m.status&&$('dlg').open)$('dn').textContent='Reading sticker: '+m.status}}).then(async w=>{await w.setParameters({tessedit_pageseg_mode:'4'});return w});
     return wk;
   }
   async function ocr(canvas){
@@ -241,38 +231,33 @@ window.addEventListener('DOMContentLoaded', () => {
     catch(e){wk=null;ocrErr=(e&&e.message)||String(e);return ''}
   }
   const T=(p,ms=90000)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(''),ms))]);
+
   function fullCanvas(src,w,h){
-    const s=Math.max(0.2,Math.min(2,1800/w));
+    const s=Math.max(0.5,Math.min(2,2000/w));
     const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
-    const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.4)';x.drawImage(src,0,0,c.width,c.height);
+    const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.6)';x.drawImage(src,0,0,c.width,c.height);
     return c;
   }
-  // Main flow: photo or camera frame -> form filled from the sticker text
-  async function scan(src,w,h,r){
+
+  async function scan(src,w,h){
     if(navigator.vibrate)navigator.vibrate(60);
     stopCam();
-    if(!r){try{r=await decode(src,w,h)}catch(e){}}
-    const o=r?parseQR(r.text):{part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1,box:''};
-    const qrQty=!!(r&&o.box);
-    msg(r?'QR code read.':'');
-    openForm('scan',o,-1);
-    $('dn').textContent='Reading the sticker text (the first time takes a few seconds)...';
+    openForm('scan',{},-1);
+    $('dn').textContent='Extracting fields from OM sticker label...';
     reading=true;ocrErr='';
+
     const t1=await T(ocr(fullCanvas(src,w,h)));
     let lab=parseLabel(t1),raw=t1;
-    if(r&&!lab.part){
-      const t2=await T(ocr(cropLabel(src,w,h,r.box)));
-      raw+='\n--- label area ---\n'+t2;
-      const l2=parseLabel(t2);
-      for(const k in l2)if(!lab[k])lab[k]=l2[k];
-    }
+
     reading=false;
-    $('rawt').textContent=raw.replace('--- label area ---','').trim()?raw.trim():'(nothing was read)';$('raw').hidden=false;
+    $('rawt').textContent=raw.trim()?raw.trim():'(nothing was read)';$('raw').hidden=false;
     if(!$('dlg').open||mode!=='scan')return;
+
     let any=false;
     const put=(id,v)=>{if(v!==undefined&&v!==''&&!$(id).value.trim()){$(id).value=v;any=true}};
     put('fPart',lab.part);put('fDesc',lab.desc);put('fRate',lab.rate);
-    if(!qrQty&&lab.qty){$('fQty').value=lab.qty;any=true}
+    if(lab.qty && lab.qty!==1){$('fQty').value=lab.qty;any=true}
+
     const p=$('fPart').value.trim().toLowerCase();
     const ex=p?items.find(x=>x.part.toLowerCase()===p):null;
     if(ex){
@@ -283,74 +268,34 @@ window.addEventListener('DOMContentLoaded', () => {
       $('lQty').textContent='Quantity to add';
       $('dn').textContent='Already in your list with quantity '+fmt(ex.qty)+'. The quantity below will be added.';
     }else if(any){
-      $('dn').textContent='Read from the sticker. Check each field before saving, and add the HSN Code and Rack.';
+      $('dn').textContent='Parsed successfully! Fill in the Rack manually and save.';
     }else{
-      const had=raw.replace('--- label area ---','').trim().length>0;
-      $('dn').textContent=ocrErr?'The text reader failed: '+ocrErr+'. Check your internet connection and reload.':had?'Text was read but no Part No, Descr, Quantity or MRP was found in it. Open "Text the app read" below, or retake the photo.':'No text was read. Retake the photo with the sticker filling the frame, or type the details.';
+      $('dn').textContent=ocrErr?'Text reader failed: '+ocrErr:'Could not match sticker fields automatically. Check "Text the app read" below.';
     }
   }
 
-  const det='BarcodeDetector' in window?new BarcodeDetector():null;
-  const cv=document.createElement('canvas');
-  // returns {text, box:{x0,x1,y0,y1}} in the source's own pixels, or null
-  async function decode(src,w,h){
-    if(det){
-      try{
-        const r=await det.detect(src);
-        if(r.length){const b=r[0].boundingBox;return {text:r[0].rawValue,box:{x0:b.x,x1:b.x+b.width,y0:b.y,y1:b.y+b.height}}}
-      }catch(e){}
-    }
-    if(window.jsQR){
-      for(const mw of [2000,1400,900]){
-        const s=Math.min(1,mw/w);cv.width=Math.round(w*s);cv.height=Math.round(h*s);
-        const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,cv.width,cv.height);
-        const d=x.getImageData(0,0,cv.width,cv.height);
-        const q=jsQR(d.data,d.width,d.height,{inversionAttempts:'attemptBoth'});
-        if(q){
-          const c=q.location,xs=[c.topLeftCorner.x,c.topRightCorner.x,c.bottomLeftCorner.x,c.bottomRightCorner.x],ys=[c.topLeftCorner.y,c.topRightCorner.y,c.bottomLeftCorner.y,c.bottomRightCorner.y];
-          return {text:q.data,box:{x0:Math.min(...xs)/s,x1:Math.max(...xs)/s,y0:Math.min(...ys)/s,y1:Math.max(...ys)/s}};
-        }
-        if(s===1)break;
-      }
-    }
-    return null;
-  }
-
-  let stream=null,busy=false,raf=0,last=0;
+  let stream=null;
   async function startCam(){
     if(stream)return;
     try{
       stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920}},audio:false});
       $('vid').srcObject=stream;await $('vid').play();
-      $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Hold the phone close so the whole label is in view, and keep it steady.');tick();
+      $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Hold steady with the OM sticker filling the frame.');
     }catch(e){
-      stream=null;msg('Camera unavailable ('+((e&&e.name)||'error')+'). Use "Photo of sticker".');
+      stream=null;msg('Camera unavailable. Use "Photo of sticker".');
     }
   }
   function stopCam(){
-    cancelAnimationFrame(raf);
     if(stream)stream.getTracks().forEach(t=>t.stop());
     stream=null;$('camwrap').hidden=true;$('camBtn').textContent='Start camera';
   }
-  async function tick(){
-    if(!stream)return;
-    const v=$('vid'),n=Date.now();
-    if(!busy&&n-last>200&&v.videoWidth){
-      busy=true;last=n;
-      try{
-        const r=await decode(v,v.videoWidth,v.videoHeight);
-        busy=false;
-        if(r&&stream){const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);scan(c,c.width,c.height,r);return}
-      }catch(e){busy=false;msg('Scan error: '+((e&&e.message)||e))}
-    }
-    raf=requestAnimationFrame(tick);
-  }
+
   $('camBtn').onclick=()=>stream?stopCam():startCam();
   $('photoBtn').onclick=()=>$('file').click();
   $('file').onchange=async e=>{
     const f=e.target.files[0];e.target.value='';if(!f)return;
-    msg('Reading photo...');
-    try{const b=await createImageBitmap(f);await scan(b,b.width,b.height,null)}
+    msg('Processing sticker photo...');
+    try{const b=await createImageBitmap(f);await scan(b,b.width,b.height)}
     catch(err){msg('That image could not be read.')}
   };
 
@@ -371,7 +316,7 @@ window.addEventListener('DOMContentLoaded', () => {
     msg('Exported '+name+'.');
   };
 
-  // Import Excel (Syncs phone and laptop instantly)
+  // Import Excel (Syncs phone and laptop)
   $('impBtn').onclick=()=>$('impFile').click();
   $('impFile').onchange=async e=>{
     const f=e.target.files[0];e.target.value='';if(!f)return;
