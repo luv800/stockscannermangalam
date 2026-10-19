@@ -131,14 +131,26 @@ window.addEventListener('DOMContentLoaded', async () => {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, {header:1});
       
+      // Find exact column indices from header row (row index 0)
+      const header = json[0] || [];
+      let idxPart = 1, idxDesc = 2, idxHsn = 3, idxRate = 6;
+      
+      header.forEach((h, idx) => {
+        const text = String(h || '').trim().toLowerCase();
+        if(text.includes('part number')) idxPart = idx;
+        if(text.includes('material description') || text.includes('description')) idxDesc = idx;
+        if(text.includes('hsn')) idxHsn = idx;
+        if(text.includes('retail') || text.includes('dnp') || text.includes('rate')) idxRate = idx;
+      });
+
       for(let i=1; i<json.length; i++) {
         const r = json[i];
-        if(!r[1]) continue;
-        const partNo = String(r[1]).trim().toUpperCase();
+        if(!r[idxPart]) continue;
+        const partNo = String(r[idxPart]).trim().toUpperCase();
         priceList[partNo] = {
-          desc: String(r[2] || ''),
-          hsn: String(r[3] || ''),
-          rate: num(r[6] || r[5])
+          desc: String(r[idxDesc] || ''),
+          hsn: String(r[idxHsn] || ''),
+          rate: num(r[idxRate] || r[6] || r[5])
         };
       }
       msg('Price list loaded successfully. Ready.');
@@ -277,7 +289,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   function parseTTO(text) {
     const clean = text.replace(/\s+/g, ' ');
-    const res = { part: '', desc: '', qty: 1, rate: '' };
+    const res = { part: '', qty: 1 };
     const pMatch = clean.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || clean.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
     if (pMatch) res.part = (pMatch[1] || pMatch[0]).trim().toUpperCase();
     const qMatch = clean.match(/Quantity[^\w]*(\d+(?:\.\d+)?)/i);
@@ -301,7 +313,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       const parsed = parseTTO(ret.data.text || '');
       const scannedPart = parsed.part || 'MH40927C11';
       
-      let matchedData = priceList[scannedPart] || { desc: 'TRANSMISSION FILTER - 80032310507', hsn: '84312010', rate: 3008 };
+      const matchedData = priceList[scannedPart] || { desc: '', hsn: '', rate: 0 };
 
       openForm('scan', {
         part: scannedPart,
@@ -314,7 +326,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       }, -1);
       msg('Scanned & verified against price list!');
     } catch(err) {
-      openForm('scan', { part: 'MH40927C11', desc: 'TRANSMISSION FILTER - 80032310507', hsn: '84312010', qty: 1, rate: 3008, per: 'Nos', rack: '' }, -1);
+      openForm('scan', { part: 'MH40927C11', desc: '', hsn: '', qty: 1, rate: 0, per: 'Nos', rack: '' }, -1);
       msg('Opened form for confirmation.');
     }
   };
