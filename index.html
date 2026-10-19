@@ -42,7 +42,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v21</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v22</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan / Add</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -195,7 +195,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const clean = text.replace(/\s+/g, ' ');
     const res = { part: '', desc: '', qty: 1, rate: '', hsn: '' };
 
-    const pMatch = clean.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || clean.match(/ (MH[A-Za-z0-9]{6,}) /i);
+    const pMatch = clean.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || clean.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
     if (pMatch) res.part = (pMatch[1] || pMatch[0]).trim().toUpperCase();
 
     const dMatch = clean.match(/Descr[^\w]*([A-Za-z0-9\-\s\/\.]+?(?=\s+Location|\s+Quantity|\s+MRP|$))/i);
@@ -207,8 +207,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (q > 0) res.qty = q;
     }
 
-    const rMatch = clean.match(/MRP[^
-]*?Rs[^\d]*([\d,]+\.\d{2})/i) || clean.match(/Rs\.?\s*([\d,]+\.\d{2})/i);
+    const rMatch = clean.match(/MRP[^\r\n]*?Rs[^\d]*([\d,]+\.\d{2})/i) || clean.match(/Rs\.?\s*([\d,]+\.\d{2})/i);
     if (rMatch) {
       res.rate = parseFloat(rMatch[1].replace(/,/g, ''));
     }
@@ -238,7 +237,6 @@ window.addEventListener('DOMContentLoaded', () => {
       const finalDesc = parsed.desc || 'TRANSMISSION FILTER - 80032310507';
       const finalQty = parsed.qty || 1;
       const finalRate = parsed.rate || 3549.54;
-      // Auto-assign HSN code from OM price list for MH40927C11
       const finalHsn = (finalPart.toUpperCase() === 'MH40927C11') ? '84312010' : (parsed.hsn || '');
 
       openForm('scan', { part: finalPart, desc: finalDesc, qty: finalQty, rate: finalRate, per: 'Nos', rack: '', hsn: finalHsn }, -1);
@@ -258,7 +256,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stock');
-    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' >> 0 });
+    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const name = 'Stock_' + new Date().toISOString().slice(0, 10) + '.xlsx';
     const u = URL.createObjectURL(new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -305,3 +303,4 @@ window.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+```[cite: 1, 2]
