@@ -45,7 +45,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v5</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v6</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -88,6 +88,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <dialog id="dlg">
 <h2 id="dt" style="margin:0 0 4px;font-size:18px"></h2>
 <div id="dn" class="mu"></div>
+<details id="raw" hidden><summary class="mu">Text the app read</summary><pre id="rawt" style="white-space:pre-wrap;font-size:12px;margin:6px 0 0"></pre></details>
 <label for="fPart">Part Number</label><input id="fPart" autocomplete="off">
 <label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off">
 <div class="g2">
@@ -155,7 +156,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const ex=m==='scan'?items.find(x=>x.part.toLowerCase()===(o.part||'').toLowerCase()):null;
     $('lQty').textContent=ex?'Quantity to add':'Quantity';
     $('dn').textContent=ex?'Already in your list with quantity '+fmt(ex.qty)+'. The quantity below will be added.':'';
-    $('del').hidden=m!=='edit';
+    $('del').hidden=m!=='edit';$('raw').hidden=true;
     $('dlg').showModal();
   }
   $('cancel').onclick=()=>$('dlg').close();
@@ -199,17 +200,17 @@ window.addEventListener('DOMContentLoaded', () => {
     for(let i=0;i<L.length;i++){
       const l=L[i],nx=L[i+1]||'';
       if(!o.part){
-        let m=l.match(/\bPart\s*(?:No|Number|#)\b\.?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/.]{2,})/i);
+        let m=l.match(/\bP(?:art)?[\s.\/]*(?:No|Number|#)\b\.?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/.]{2,})/i);
         if(!m)m=l.match(/\bMat\b\.?\s*[:\-]?\s*([A-Za-z0-9]{6,})/i);
         if(m)o.part=m[1].toUpperCase();
       }
       if(!o.desc){
-        const m=l.match(/\bDescr(?:iption)?\b\.?\s*[:\-]?\s*(.{3,})/i);
+        const m=l.match(/\bDesc(?:r|ription)?\b\.?\s*[:\-]?\s*(.{3,})/i);
         if(m)o.desc=m[1].trim().slice(0,80);
       }
       if(!o.qty){const m=l.match(/\b(?:Quantity|Qty)\b\.?\s*[:\-]?\s*(\d+(?:[.,]\d+)?)/i);if(m)o.qty=numTxt(m[1])}
-      if(!o.rate&&/\bMRP\b/i.test(l)){
-        const rest=(l.replace(/^.*?\bMRP\b/i,'')+' '+nx).replace(/\([^)]*\)?/g,' ');
+      if(!o.rate&&/\bM\.?R\.?P\b/i.test(l)){
+        const rest=(l.replace(/^.*?\bM\.?R\.?P\b\.?/i,'')+' '+nx).replace(/\([^)]*\)?/g,' ');
         const m=rest.match(/(\d[\d,]*(?:\.\d+)?)/);
         if(m)o.rate=num(m[1].replace(/,/g,''));
       }
@@ -229,16 +230,17 @@ window.addEventListener('DOMContentLoaded', () => {
     x.drawImage(src,cx0,cy0,cw,ch,0,0,c.width,c.height);
     return c;
   }
-  let wk=null;
-  async function ocr(canvas){
-    if(!window.Tesseract)return '';
-    try{
-      if(!wk)wk=Tesseract.createWorker('eng').then(async w=>{await w.setParameters({tessedit_pageseg_mode:'4'});return w});
-      const w=await wk;const r=await w.recognize(canvas);return r.data.text||'';
-    }catch(e){wk=null;return ''}
+  let wk=null,ocrErr='',reading=false;
+  function getWorker(){
+    if(!wk)wk=Tesseract.createWorker('eng',1,{logger:m=>{if(reading&&m&&m.status&&$('dlg').open)$('dn').textContent='Reading the sticker: '+m.status+(typeof m.progress==='number'?' '+Math.round(m.progress*100)+'%':'')}}).then(async w=>{await w.setParameters({tessedit_pageseg_mode:'4'});return w});
+    return wk;
   }
-
-  const T=(p,ms=30000)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(''),ms))]);
+  async function ocr(canvas){
+    if(!window.Tesseract){ocrErr='reader library not loaded';return ''}
+    try{const w=await getWorker();const r=await w.recognize(canvas);return r.data.text||''}
+    catch(e){wk=null;ocrErr=(e&&e.message)||String(e);return ''}
+  }
+  const T=(p,ms=90000)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(''),ms))]);
   function fullCanvas(src,w,h){
     const s=Math.max(0.2,Math.min(2,1800/w));
     const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
@@ -255,11 +257,17 @@ window.addEventListener('DOMContentLoaded', () => {
     msg(r?'QR code read.':'');
     openForm('scan',o,-1);
     $('dn').textContent='Reading the sticker text (the first time takes a few seconds)...';
-    let lab=parseLabel(await T(ocr(fullCanvas(src,w,h))));
+    reading=true;ocrErr='';
+    const t1=await T(ocr(fullCanvas(src,w,h)));
+    let lab=parseLabel(t1),raw=t1;
     if(r&&!lab.part){
-      const l2=parseLabel(await T(ocr(cropLabel(src,w,h,r.box))));
+      const t2=await T(ocr(cropLabel(src,w,h,r.box)));
+      raw+='\n--- label area ---\n'+t2;
+      const l2=parseLabel(t2);
       for(const k in l2)if(!lab[k])lab[k]=l2[k];
     }
+    reading=false;
+    $('rawt').textContent=raw.replace('--- label area ---','').trim()?raw.trim():'(nothing was read)';$('raw').hidden=false;
     if(!$('dlg').open||mode!=='scan')return;
     let any=false;
     const put=(id,v)=>{if(v!==undefined&&v!==''&&!$(id).value.trim()){$(id).value=v;any=true}};
@@ -277,7 +285,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }else if(any){
       $('dn').textContent='Read from the sticker. Check each field before saving, and add the HSN Code and Rack.';
     }else{
-      $('dn').textContent=window.Tesseract?'The sticker text could not be read. Retake the photo with the sticker filling the frame, or type the details.':'The text reader did not load. Check your internet connection and reload.';
+      const had=raw.replace('--- label area ---','').trim().length>0;
+      $('dn').textContent=ocrErr?'The text reader failed: '+ocrErr+'. Check your internet connection and reload.':had?'Text was read but no Part No, Descr, Quantity or MRP was found in it. Open "Text the app read" below, or retake the photo.':'No text was read. Retake the photo with the sticker filling the frame, or type the details.';
     }
   }
 
@@ -399,6 +408,7 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   render();
+  setTimeout(()=>{if(window.Tesseract)getWorker().catch(()=>{wk=null})},1500);
 });
 </script>
 </body>
