@@ -45,7 +45,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v14</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v15</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -248,12 +248,12 @@ window.addEventListener('DOMContentLoaded', () => {
       if (parsed.rate) $('fRate').value = parsed.rate;
 
       if (parsed.part || parsed.desc) {
-        $('dn').textContent = 'Successfully extracted OM sticker details! Enter Rack manually and save.';
+        $('dn').textContent='Successfully extracted OM sticker details! Enter Rack manually and save.';
       } else {
-        $('dn').textContent = 'Could not auto-detect fields. Check "Text the app read" above.';
+        $('dn').textContent='Could not auto-detect fields. Check "Text the app read" above.';
       }
     } catch (err) {
-      $('dn').textContent = 'OCR error: ' + err.message;
+      $('dn').textContent='OCR error: '+err.message;
     }
   }
 
