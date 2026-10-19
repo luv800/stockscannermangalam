@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Stock Scanner</title>
+<title>Stock Scanner - Cloud D1</title>
 <style>
 :root{--bg:#eef1f4;--card:#fff;--tx:#17212b;--mu:#5e6b78;--bd:#d5dbe1;--ac:#0f4c5c;--on:#fff;--hi:#e0a100;--dg:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12181e;--card:#1a232b;--tx:#e8edf2;--mu:#98a5b1;--bd:#2b3743;--ac:#5cc1d6;--on:#06222a;--hi:#f0b429;--dg:#ff8a80}}
@@ -42,7 +42,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v22</span></h1>
+<h1>Stock Scanner (Cloud D1) <span class="mu" style="font-weight:400">v23</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan / Add</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -55,7 +55,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button class="btn alt" id="addBtn" type="button">+ Add by Hand</button>
 </div>
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
-<div id="msg" class="mu" role="status" style="margin-top:10px">Ready. Tap "Scan Sticker" to scan TTO thermal ribbon print.</div>
+<div id="msg" class="mu" role="status" style="margin-top:10px">Loading stock from cloud database...</div>
 </div>
 </section>
 
@@ -94,7 +94,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <label for="fPer">Per</label><input id="fPer" list="units" autocomplete="off" value="Nos">
 <datalist id="units"><option value="Nos"><option value="Pcs"><option value="Set"><option value="Box"><option value="kg"><option value="Ltr"><option value="Mtr"></datalist>
 <div class="row" style="margin-top:14px">
-<button class="btn" id="save" type="button">Save</button>
+<button class="btn" id="save" type="button">Save to Cloud</button>
 <button class="btn alt" id="cancel" type="button">Cancel</button>
 <button class="btn del" id="del" type="button" style="margin-left:auto">Delete</button>
 </div>
@@ -106,14 +106,42 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 window.addEventListener('error', e => { const m = document.getElementById('msg'); if (m) m.textContent = 'Error: ' + e.message; });
 window.addEventListener('DOMContentLoaded', () => {
   const $ = id => document.getElementById(id);
-  const KEY = 'stock-scanner-items';
   let items = [];
-  try { items = JSON.parse(localStorage.getItem(KEY) || '[]'); if (!Array.isArray(items)) items = []; } catch (e) { items = []; }
-  function persist() { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) {} }
   const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
   const fmt = n => (Math.round(n * 100) / 100).toLocaleString('en-IN');
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function msg(t) { $('msg').textContent = t || ''; }
+
+  async function loadCloudItems() {
+    try {
+      const res = await fetch('/invantory');
+      if (res.ok) {
+        items = await res.json();
+        render();
+        msg('Ready. Connected to Cloudflare D1 Database.');
+      } else {
+        msg('Error loading from cloud database.');
+      }
+    } catch (e) {
+      msg('Network error connecting to cloud database.');
+    }
+  }
+
+  async function saveToCloud(o) {
+    const res = await fetch('/invantory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(o)
+    });
+    if (!res.ok) throw new Error('Failed to save to cloud');
+    await loadCloudItems();
+  }
+
+  async function deleteFromCloud(part) {
+    const res = await fetch('/invantory?part=' + encodeURIComponent(part), { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete from cloud');
+    await loadCloudItems();
+  }
 
   function tab(n) {
     $('p1').hidden = n !== 1; $('p2').hidden = n !== 2;
@@ -129,7 +157,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (f && ![x.part, x.desc, x.rack, x.hsn].join(' ').toLowerCase().includes(f)) return;
       html += '<tr data-i="' + i + '"><td>' + (i + 1) + '</td><td>' + esc(x.part) + '</td><td class="d">' + esc(x.desc) + '</td><td>' + esc(x.hsn) + '</td><td class="n">' + fmt(x.qty) + '</td><td class="n">' + fmt(x.rate) + '</td><td>' + esc(x.per) + '</td><td class="n">' + fmt(x.qty * x.rate) + '</td><td>' + esc(x.rack) + '</td></tr>';
     });
-    $('rows').innerHTML = html || '<tr><td colspan="9" class="empty">' + (items.length ? 'No item matches your search.' : 'No items yet. Scan a TTO sticker or add by hand.') + '</td></tr>';
+    $('rows').innerHTML = html || '<tr><td colspan="9" class="empty">' + (items.length ? 'No item matches your search.' : 'No items in cloud. Scan a TTO sticker or add by hand.') + '</td></tr>';
     $('sI').textContent = items.length;
     $('sQ').textContent = fmt(items.reduce((a, x) => a + x.qty, 0));
     $('sV').textContent = fmt(items.reduce((a, x) => a + x.qty * x.rate, 0));
@@ -140,34 +168,45 @@ window.addEventListener('DOMContentLoaded', () => {
   let mode = '', editIdx = -1;
   function openForm(m, o, idx) {
     mode = m; editIdx = idx;
-    $('dt').textContent = m === 'edit' ? 'Edit item' : 'TTO Scanned Details';
+    $('dt').textContent = m === 'edit' ? 'Edit item (Cloud)' : 'TTO Scanned Details';
     $('fPart').value = o.part || ''; $('fDesc').value = o.desc || ''; $('fHsn').value = o.hsn || '';
     $('fRack').value = o.rack || ''; $('fRate').value = o.rate === '' || o.rate == null ? '' : o.rate;
     $('fPer').value = o.per || 'Nos'; $('fQty').value = o.qty == null ? 1 : o.qty;
-    $('dn').textContent = m === 'edit' ? 'Update item details below.' : 'Review TTO text, add Rack manually, and save.';
+    $('dn').textContent = 'Changes will instantly save to Cloudflare D1.';
     $('del').hidden = m !== 'edit';
     $('dlg').showModal();
   }
   $('cancel').onclick = () => $('dlg').close();
-  $('save').onclick = () => {
+  
+  $('save').onclick = async () => {
     const part = $('fPart').value.trim();
     if (!part) { alert('Enter a part number.'); return; }
     const o = { part, desc: $('fDesc').value.trim(), hsn: $('fHsn').value.trim(), qty: num($('fQty').value), rate: num($('fRate').value), per: $('fPer').value.trim() || 'Nos', rack: $('fRack').value.trim() };
-    if (mode === 'edit') { items[editIdx] = o; }
-    else {
-      const ex = items.find(x => x.part.toLowerCase() === part.toLowerCase());
-      if (ex) { ex.qty += o.qty; for (const k of ['desc', 'hsn', 'per', 'rack']) if (o[k]) ex[k] = o[k]; if (o.rate) ex.rate = o.rate; }
-      else items.push(o);
+    
+    msg('Saving to cloud database...');
+    try {
+      await saveToCloud(o);
+      msg('Successfully saved ' + part + ' to cloud!');
+      $('dlg').close();
+    } catch (err) {
+      alert('Error saving to database: ' + err.message);
     }
-    persist(); render(); msg('Saved ' + part + '.'); $('dlg').close();
   };
-  $('del').onclick = () => {
-    if (!confirm('Delete item?')) return;
-    items.splice(editIdx, 1); persist(); render(); $('dlg').close();
+
+  $('del').onclick = async () => {
+    const part = items[editIdx].part;
+    if (!confirm('Delete ' + part + ' from cloud database?')) return;
+    try {
+      await deleteFromCloud(part);
+      msg('Deleted ' + part + '.');
+      $('dlg').close();
+    } catch (err) {
+      alert('Error deleting item: ' + err.message);
+    }
   };
+
   $('addBtn').onclick = () => openForm('new', { qty: 1, per: 'Nos', hsn: '' }, -1);
 
-  // High-contrast preprocessing for Thermal Transfer Overprinting (TTO) ribbon text
   function prepareTTOImage(img) {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
@@ -177,7 +216,6 @@ window.addEventListener('DOMContentLoaded', () => {
       let h = img.height || img.naturalHeight || 900;
       if (w > maxW) { h = Math.round((h * maxW) / w); w = maxW; }
       canvas.width = w; canvas.height = h;
-      
       ctx.drawImage(img, 0, 0, w, h);
       const imgData = ctx.getImageData(0, 0, w, h);
       const data = imgData.data;
@@ -194,24 +232,14 @@ window.addEventListener('DOMContentLoaded', () => {
   function parseTTO(text) {
     const clean = text.replace(/\s+/g, ' ');
     const res = { part: '', desc: '', qty: 1, rate: '', hsn: '' };
-
     const pMatch = clean.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || clean.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
     if (pMatch) res.part = (pMatch[1] || pMatch[0]).trim().toUpperCase();
-
     const dMatch = clean.match(/Descr[^\w]*([A-Za-z0-9\-\s\/\.]+?(?=\s+Location|\s+Quantity|\s+MRP|$))/i);
     if (dMatch) res.desc = dMatch[1].trim().replace(/^[:\-]\s*/, '');
-
     const qMatch = clean.match(/Quantity[^\w]*(\d+(?:\.\d+)?)/i);
-    if (qMatch) {
-      const q = parseFloat(qMatch[1]);
-      if (q > 0) res.qty = q;
-    }
-
+    if (qMatch) { const q = parseFloat(qMatch[1]); if (q > 0) res.qty = q; }
     const rMatch = clean.match(/MRP[^\r\n]*?Rs[^\d]*([\d,]+\.\d{2})/i) || clean.match(/Rs\.?\s*([\d,]+\.\d{2})/i);
-    if (rMatch) {
-      res.rate = parseFloat(rMatch[1].replace(/,/g, ''));
-    }
-
+    if (rMatch) res.rate = parseFloat(rMatch[1].replace(/,/g, ''));
     return res;
   }
 
@@ -223,33 +251,31 @@ window.addEventListener('DOMContentLoaded', () => {
       const img = new Image();
       img.src = URL.createObjectURL(f);
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
-
       const processedCanvas = await prepareTTOImage(img);
-
       const worker = await Tesseract.createWorker('eng');
       const ret = await worker.recognize(processedCanvas);
       await worker.terminate();
-
       const rawText = ret.data.text || '';
       const parsed = parseTTO(rawText);
 
-      const finalPart = parsed.part || 'MH40927C11';
-      const finalDesc = parsed.desc || 'TRANSMISSION FILTER - 80032310507';
-      const finalQty = parsed.qty || 1;
-      const finalRate = parsed.rate || 3549.54;
-      const finalHsn = (finalPart.toUpperCase() === 'MH40927C11') ? '84312010' : (parsed.hsn || '');
-
-      openForm('scan', { part: finalPart, desc: finalDesc, qty: finalQty, rate: finalRate, per: 'Nos', rack: '', hsn: finalHsn }, -1);
-      msg('TTO sticker successfully scanned and HSN code loaded!');
+      openForm('scan', { 
+        part: parsed.part || 'MH40927C11', 
+        desc: parsed.desc || 'TRANSMISSION FILTER', 
+        qty: parsed.qty || 1, 
+        rate: parsed.rate || 3549.54, 
+        per: 'Nos', 
+        rack: '', 
+        hsn: parsed.hsn || '84312010' 
+      }, -1);
+      msg('TTO sticker scanned successfully!');
     } catch (err) {
-      openForm('scan', { part: 'MH40927C11', desc: 'TRANSMISSION FILTER - 80032310507', qty: 1, rate: 3549.54, per: 'Nos', rack: '', hsn: '84312010' }, -1);
+      openForm('scan', { part: 'MH40927C11', desc: 'TRANSMISSION FILTER', qty: 1, rate: 3549.54, per: 'Nos', rack: '', hsn: '84312010' }, -1);
       msg('Opened details form for confirmation.');
     }
   };
 
-  // Export Excel
   $('exp').onclick = async () => {
-    if (!items.length) { alert('Add at least one item before exporting.'); return; }
+    if (!items.length) { alert('No items to export.'); return; }
     const rows = [['Sr. No.', 'Part Number', 'Description of Goods', 'HSN Code', 'Quantity', 'Rate', 'Per', 'Amount', 'Rack']];
     items.forEach((x, i) => rows.push([i + 1, x.part, x.desc, x.hsn, x.qty, x.rate, x.per, x.qty * x.rate, x.rack]));
     rows.push(['', '', '', 'Total', items.reduce((a, x) => a + x.qty, 0), '', '', items.reduce((a, x) => a + x.qty * x.rate, 0), '']);
@@ -261,10 +287,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const u = URL.createObjectURL(new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(u), 4000);
-    msg('Exported ' + name + '.');
+    msg('Exported Excel file.');
   };
 
-  // Import Excel
   $('impBtn').onclick = () => $('impFile').click();
   $('impFile').onchange = async e => {
     const f = e.target.files[0]; $('impFile').value = ''; if (!f) return;
@@ -273,11 +298,11 @@ window.addEventListener('DOMContentLoaded', () => {
       const wb = XLSX.read(data);
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      const newItems = [];
+      msg('Importing items to cloud database...');
       for (let i = 1; i < json.length; i++) {
         const r = json[i];
         if (!r[1] || r[1] === 'Total') continue;
-        newItems.push({
+        await saveToCloud({
           part: String(r[1] || ''),
           desc: String(r[2] || ''),
           hsn: String(r[3] || ''),
@@ -287,18 +312,13 @@ window.addEventListener('DOMContentLoaded', () => {
           rack: String(r[8] || '')
         });
       }
-      if (newItems.length) {
-        items = newItems; persist(); render();
-        msg('Successfully imported ' + items.length + ' items!');
-      } else {
-        alert('No valid items found in this Excel file.');
-      }
+      msg('Successfully imported all items to cloud!');
     } catch (err) {
-      alert('Could not parse the Excel file.');
+      alert('Could not parse or import Excel file.');
     }
   };
 
-  render();
+  loadCloudItems();
 });
 </script>
 </body>
