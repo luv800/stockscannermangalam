@@ -21,8 +21,9 @@ h1{font-size:22px;margin:4px 0 12px}
 .btn.del{background:transparent;color:var(--dg);border-color:var(--dg)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .mu{color:var(--mu);font-size:14px}
-#reader{width:100%;border-radius:10px;overflow:hidden;background:#000;margin-top:12px}
-#reader video{width:100%!important;object-fit:cover!important}
+#camwrap{position:relative;margin-top:12px;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:4/3}
+#camwrap video{width:100%;height:100%;object-fit:cover;display:block}
+.frame{position:absolute;inset:18% 18%;border:3px solid var(--hi);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .stat{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
 .stat b{display:block;font-size:20px}
@@ -49,7 +50,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
 </div>
-
+ 
 <section id="p1">
 <div class="card">
 <div class="row">
@@ -58,11 +59,11 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button class="btn alt" id="addBtn" type="button">Add item by hand</button>
 </div>
 <input type="file" id="file" accept="image/*" hidden>
-<div id="msg" class="mu" role="status">Ready.</div>
-<div id="reader" hidden></div>
+<div id="msg" class="mu" role="status">Ready. Hold the phone close so the whole label is in view.</div>
+<div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="frame"></div></div>
 </div>
 </section>
-
+ 
 <section id="p2" hidden>
 <div class="stats">
 <div class="stat"><span class="mu">Items</span><b id="sI">0</b></div>
@@ -83,7 +84,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </div>
 </section>
 </main>
-
+ 
 <dialog id="dlg">
 <h2 id="dt" style="margin:0 0 4px;font-size:18px"></h2>
 <div id="dn" class="mu"></div>
@@ -103,9 +104,10 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button class="btn del" id="del" type="button" style="margin-left:auto">Delete</button>
 </div>
 </dialog>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+ 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', () => {
   const $=id=>document.getElementById(id);
@@ -117,7 +119,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-IN');
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function msg(t){$('msg').textContent=t||''};
-
+ 
   function tab(n){
     $('p1').hidden=n!==1;$('p2').hidden=n!==2;
     $('t1').setAttribute('aria-selected',n===1);$('t2').setAttribute('aria-selected',n===2);
@@ -125,7 +127,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if(n===2)render();
   }
   $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
-
+ 
   function render(){
     const f=$('q').value.trim().toLowerCase();
     let html='';
@@ -140,8 +142,8 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   $('q').oninput=render;
   $('rows').onclick=e=>{const r=e.target.closest('tr[data-i]');if(r)openForm('edit',items[+r.dataset.i],+r.dataset.i)};
-
-  let mode='',editIdx=-1,scanner=null,isScanning=false;
+ 
+  let mode='',editIdx=-1;
   function openForm(m,o,idx){
     mode=m;editIdx=idx;
     $('dt').textContent=m==='edit'?'Edit item':m==='scan'?'Scanned item':'New item';
@@ -154,7 +156,6 @@ window.addEventListener('DOMContentLoaded', () => {
     $('del').hidden=m!=='edit';
     $('dlg').showModal();
   }
-  function closeForm(){$('dlg'.close())}
   $('cancel').onclick=()=>$('dlg').close();
   $('save').onclick=()=>{
     const part=$('fPart').value.trim();
@@ -173,75 +174,144 @@ window.addEventListener('DOMContentLoaded', () => {
     items.splice(editIdx,1);persist();render();$('dlg').close();
   };
   $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
-
-  // Clean parser for OM equipment parts labels
-  function got(text){
-    if(navigator.vibrate)navigator.vibrate(80);
-    const cleanText = text.trim();
-    let partNum = cleanText;
-    let descTxt = '';
-    let rackTxt = '';
-    let qtyVal = 1;
-
-    // If scanning contains serial/mat patterns, extract clean part number if possible
-    if(cleanText.includes('MH') || cleanText.length < 25) {
-      partNum = cleanText;
+ 
+  // QR on OM labels reads like: 1.000/4943888379/0007/066  (qty / number / number / code)
+  function parseQR(t){
+    t=t.trim();
+    const o={part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1,box:''};
+    const p=t.split('/').map(s=>s.trim());
+    if(p.length>=3&&/^\d+(\.\d+)?$/.test(p[0])){o.qty=num(p[0])||1;o.per='Pcs';o.box=p[1]+p[2];return o}
+    if(t.includes('|')){
+      const q=t.split('|').map(s=>s.trim());
+      o.part=q[0]||'';o.desc=q[1]||'';o.hsn=q[2]||'';o.rate=q[3]||'';o.per=q[4]||'Nos';o.rack=q[5]||'';
+      return o;
     }
-
-    const o={part:partNum, desc:descTxt, hsn:'', rate:'', per:'Nos', rack:rackTxt, qty:qtyVal};
-    const ex=items.find(x=>x.part.toLowerCase()===o.part.toLowerCase());
-    if(ex){
-      for(const k of['desc','hsn','rack'])if(!o[k])o[k]=ex[k];
-      if(!o.rate)o.rate=ex.rate;
-    }
-    stopCam();
-    openForm('scan',o,-1);
+    o.part=t;return o;
   }
-
-  async function startCam(){
-    if(isScanning)return;
-    $('reader').hidden=false;
-    scanner=new Html5Qrcode("reader");
+ 
+  // Printed label text -> fields: top line = Description of Goods, Mat. = Part Number, Bin = Rack
+  function parseLabel(t){
+    const o={};
+    const L=t.split(/\n/).map(s=>s.replace(/¢/g,'C').trim()).filter(Boolean);
+    for(const l of L){
+      if(!o.desc){
+        const m=l.match(/([A-Z][A-Za-z ]{3,}?)\s*[-~–—]\s*(\d{6,})/);
+        if(m)o.desc=m[1].trim().replace(/^(\S{1,2}\s+)+/,'').toUpperCase()+' - '+m[2];
+      }
+      if(!o.part){const m=l.match(/\bMat\b\.?\s*[:\-]?\s*([A-Za-z0-9]{6,})/i);if(m)o.part=m[1].toUpperCase()}
+      if(!o.rack){const m=l.match(/\bBin\b\.?\s*[:\-]?\s*([A-Za-z0-9]{4,})/i);if(m)o.rack=m[1].toUpperCase()}
+      if(!o.qty){const m=l.match(/\bQty\b\.?\s*[:\-]?\s*(\d+)\s*[.,]\s*0{3}/i);if(m)o.qty=num(m[1])}
+    }
+    return o;
+  }
+ 
+  // Crop the label area around the QR code (text sits to the left of it) for OCR
+  function cropLabel(src,w,h,b){
+    const q=Math.max(b.x1-b.x0,b.y1-b.y0);
+    const cx0=Math.max(0,b.x0-4.4*q),cx1=Math.min(w,b.x1+0.15*q);
+    const cy0=Math.max(0,b.y0-0.8*q),cy1=Math.min(h,b.y1+0.45*q);
+    const cw=cx1-cx0,ch=cy1-cy0;
+    const s=Math.max(1,Math.min(3,1800/cw));
+    const c=document.createElement('canvas');c.width=Math.round(cw*s);c.height=Math.round(ch*s);
+    const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.4)';
+    x.drawImage(src,cx0,cy0,cw,ch,0,0,c.width,c.height);
+    return c;
+  }
+  let wk=null;
+  async function ocr(canvas){
+    if(!window.Tesseract)return '';
     try{
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 280, height: 280 } },
-        (decodedText)=>{ got(decodedText); },
-        (errorMessage)=>{}
-      );
-      isScanning=true;
-      $('camBtn').textContent='Stop camera';
-      msg('Point camera at the QR code.');
-    }catch(err){
-      $('reader').hidden=true;
-      msg('Camera unavailable. Use "Upload photo to scan".');
+      if(!wk)wk=Tesseract.createWorker('eng').then(async w=>{await w.setParameters({tessedit_pageseg_mode:'4'});return w});
+      const w=await wk;const r=await w.recognize(canvas);return r.data.text||'';
+    }catch(e){wk=null;return ''}
+  }
+ 
+  async function got(res,crop){
+    if(navigator.vibrate)navigator.vibrate(80);
+    stopCam();
+    const o=parseQR(res.text);
+    let read=false;
+    if(crop){
+      msg('QR read. Reading the label text (the first time takes a few seconds)...');
+      const lab=parseLabel(await ocr(crop));
+      if(lab.part||lab.desc||lab.rack){read=true;o.part=lab.part||o.part;o.desc=lab.desc||o.desc;o.rack=lab.rack||o.rack}
+    }
+    const ex=items.find(x=>x.part&&x.part.toLowerCase()===o.part.toLowerCase());
+    if(ex){for(const k of['desc','hsn','rack'])if(!o[k])o[k]=ex[k];if(!o.rate)o.rate=ex.rate;o.per=ex.per}
+    msg('');
+    openForm('scan',o,-1);
+    if(!ex){
+      if(read)$('dn').textContent='Read from the label. Check Part Number, Description and Rack, then add HSN Code and Rate.';
+      else if(o.box)$('dn').textContent='Label text could not be read. Number from QR: '+o.box+'. Type the Part Number from the label.';
     }
   }
-
-  async function stopCam(){
-    if(scanner && isScanning){
-      try{await scanner.stop();scanner.clear()}catch(e){}
+ 
+  const det='BarcodeDetector' in window?new BarcodeDetector():null;
+  const cv=document.createElement('canvas');
+  // returns {text, box:{x0,x1,y0,y1}} in the source's own pixels, or null
+  async function decode(src,w,h){
+    if(det){
+      try{
+        const r=await det.detect(src);
+        if(r.length){const b=r[0].boundingBox;return {text:r[0].rawValue,box:{x0:b.x,x1:b.x+b.width,y0:b.y,y1:b.y+b.height}}}
+      }catch(e){}
     }
-    isScanning=false;
-    $('reader').hidden=true;
-    $('camBtn').textContent='Start camera';
+    if(window.jsQR){
+      for(const mw of [2000,1400,900]){
+        const s=Math.min(1,mw/w);cv.width=Math.round(w*s);cv.height=Math.round(h*s);
+        const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,cv.width,cv.height);
+        const d=x.getImageData(0,0,cv.width,cv.height);
+        const q=jsQR(d.data,d.width,d.height,{inversionAttempts:'attemptBoth'});
+        if(q){
+          const c=q.location,xs=[c.topLeftCorner.x,c.topRightCorner.x,c.bottomLeftCorner.x,c.bottomRightCorner.x],ys=[c.topLeftCorner.y,c.topRightCorner.y,c.bottomLeftCorner.y,c.bottomRightCorner.y];
+          return {text:q.data,box:{x0:Math.min(...xs)/s,x1:Math.max(...xs)/s,y0:Math.min(...ys)/s,y1:Math.max(...ys)/s}};
+        }
+        if(s===1)break;
+      }
+    }
+    return null;
   }
-
-  $('camBtn').onclick=()=>isScanning?stopCam():startCam();
+ 
+  let stream=null,busy=false,raf=0,last=0;
+  async function startCam(){
+    if(stream)return;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920}},audio:false});
+      $('vid').srcObject=stream;await $('vid').play();
+      $('camwrap').hidden=false;$('camBtn').textContent='Stop camera';msg('Hold the phone close so the whole label is in view, and keep it steady.');tick();
+    }catch(e){
+      stream=null;msg('Camera unavailable ('+((e&&e.name)||'error')+'). Use "Upload photo to scan".');
+    }
+  }
+  function stopCam(){
+    cancelAnimationFrame(raf);
+    if(stream)stream.getTracks().forEach(t=>t.stop());
+    stream=null;$('camwrap').hidden=true;$('camBtn').textContent='Start camera';
+  }
+  async function tick(){
+    if(!stream)return;
+    const v=$('vid'),n=Date.now();
+    if(!busy&&n-last>200&&v.videoWidth){
+      busy=true;last=n;
+      const r=await decode(v,v.videoWidth,v.videoHeight);
+      busy=false;
+      if(r&&stream){const c=cropLabel(v,v.videoWidth,v.videoHeight,r.box);got(r,c);return}
+    }
+    raf=requestAnimationFrame(tick);
+  }
+  $('camBtn').onclick=()=>stream?stopCam():startCam();
   $('photoBtn').onclick=()=>$('file').click();
   $('file').onchange=async e=>{
     const f=e.target.files[0];e.target.value='';if(!f)return;
-    msg('Processing label photo...');
-    const qrReader=new Html5Qrcode("reader");
+    msg('Reading photo...');
     try{
-      const decodedText=await qrReader.scanFile(f,true);
-      msg('QR code decoded!');
-      got(decodedText);
-    }catch(err){
-      msg('Could not read QR from photo. Ensure good lighting.');
-    }
+      const b=await createImageBitmap(f);
+      const r=await decode(b,b.width,b.height);
+      if(r){got(r,cropLabel(b,b.width,b.height,r.box))}
+      else msg('No QR code found. Move closer so the label fills the photo, keep it sharp and avoid glare.');
+    }catch(err){msg('That image could not be read.')}
   };
-
+ 
   // Export Excel
   $('exp').onclick=async()=>{
     if(!items.length){alert('Add at least one item before exporting.');return}
@@ -258,7 +328,7 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(()=>URL.revokeObjectURL(u),4000);
     msg('Exported '+name+'.');
   };
-
+ 
   // Import Excel (Syncs phone and laptop instantly)
   $('impBtn').onclick=()=>$('impFile').click();
   $('impFile').onchange=async e=>{
@@ -294,7 +364,7 @@ window.addEventListener('DOMContentLoaded', () => {
       alert('Could not parse the Excel file.');
     }
   };
-
+ 
   render();
 });
 </script>
