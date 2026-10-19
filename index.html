@@ -42,7 +42,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v20</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v21</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan / Add</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -55,7 +55,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button class="btn alt" id="addBtn" type="button">+ Add by Hand</button>
 </div>
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
-<div id="msg" class="mu" role="status" style="margin-top:10px">Ready. Tap "Scan TTO Sticker" to scan thermal ribbon print.</div>
+<div id="msg" class="mu" role="status" style="margin-top:10px">Ready. Tap "Scan Sticker" to scan TTO thermal ribbon print.</div>
 </div>
 </section>
 
@@ -86,12 +86,12 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <label for="fPart">Part Number</label><input id="fPart" autocomplete="off" placeholder="e.g. MH40927C11">
 <label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off" placeholder="e.g. TRANSMISSION FILTER">
 <div class="g2">
-<div><label for="fHsn">HSN Code</label><input id="fHsn" inputmode="numeric" autocomplete="off"></div>
+<div><label for="fHsn">HSN Code</label><input id="fHsn" inputmode="numeric" autocomplete="off" placeholder="e.g. 84312010"></div>
 <div><label for="fRack">Rack (Manual)</label><input id="fRack" autocomplete="off" placeholder="e.g. A1"></div>
-<div><label for="fQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any" value="e.g. 1"></div>
-<div><label for="fRate">Rate (MRP)</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="e.g. 1234.56"></div>
+<div><label for="fQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any" value="1"></div>
+<div><label for="fRate">Rate (MRP)</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="e.g. 3549.54"></div>
 </div>
-<label for="fPer">Per</label><input id="fPer" list="units" autocomplete="off" value="e.g. Nos">
+<label for="fPer">Per</label><input id="fPer" list="units" autocomplete="off" value="Nos">
 <datalist id="units"><option value="Nos"><option value="Pcs"><option value="Set"><option value="Box"><option value="kg"><option value="Ltr"><option value="Mtr"></datalist>
 <div class="row" style="margin-top:14px">
 <button class="btn" id="save" type="button">Save</button>
@@ -126,7 +126,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const f = $('q').value.trim().toLowerCase();
     let html = '';
     items.forEach((x, i) => {
-      if (f && ![x.part, x.desc, x.rack].join(' ').toLowerCase().includes(f)) return;
+      if (f && ![x.part, x.desc, x.rack, x.hsn].join(' ').toLowerCase().includes(f)) return;
       html += '<tr data-i="' + i + '"><td>' + (i + 1) + '</td><td>' + esc(x.part) + '</td><td class="d">' + esc(x.desc) + '</td><td>' + esc(x.hsn) + '</td><td class="n">' + fmt(x.qty) + '</td><td class="n">' + fmt(x.rate) + '</td><td>' + esc(x.per) + '</td><td class="n">' + fmt(x.qty * x.rate) + '</td><td>' + esc(x.rack) + '</td></tr>';
     });
     $('rows').innerHTML = html || '<tr><td colspan="9" class="empty">' + (items.length ? 'No item matches your search.' : 'No items yet. Scan a TTO sticker or add by hand.') + '</td></tr>';
@@ -165,7 +165,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!confirm('Delete item?')) return;
     items.splice(editIdx, 1); persist(); render(); $('dlg').close();
   };
-  $('addBtn').onclick = () => openForm('new', { qty: 1, per: 'Nos' }, -1);
+  $('addBtn').onclick = () => openForm('new', { qty: 1, per: 'Nos', hsn: '' }, -1);
 
   // High-contrast preprocessing for Thermal Transfer Overprinting (TTO) ribbon text
   function prepareTTOImage(img) {
@@ -178,13 +178,11 @@ window.addEventListener('DOMContentLoaded', () => {
       if (w > maxW) { h = Math.round((h * maxW) / w); w = maxW; }
       canvas.width = w; canvas.height = h;
       
-      // Draw image and apply high contrast thresholding for thermal print ribbons
       ctx.drawImage(img, 0, 0, w, h);
       const imgData = ctx.getImageData(0, 0, w, h);
       const data = imgData.data;
       for (let i = 0; i < data.length; i += 4) {
         let avg = (data[i] * 0.3 + data[i+1] * 0.6 + data[i+2] * 0.1);
-        // High contrast boost for TTO thermal ribbon dot-matrix text
         let v = avg < 140 ? 0 : 255; 
         data[i] = v; data[i+1] = v; data[i+2] = v;
       }
@@ -195,25 +193,22 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function parseTTO(text) {
     const clean = text.replace(/\s+/g, ' ');
-    const res = { part: '', desc: '', qty: 1, rate: '' };
+    const res = { part: '', desc: '', qty: 1, rate: '', hsn: '' };
 
-    // Part Number match for OM / KION TTO prints
-    const pMatch = clean.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || clean.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
+    const pMatch = clean.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || clean.match(/ (MH[A-Za-z0-9]{6,}) /i);
     if (pMatch) res.part = (pMatch[1] || pMatch[0]).trim().toUpperCase();
 
-    // Description match
     const dMatch = clean.match(/Descr[^\w]*([A-Za-z0-9\-\s\/\.]+?(?=\s+Location|\s+Quantity|\s+MRP|$))/i);
     if (dMatch) res.desc = dMatch[1].trim().replace(/^[:\-]\s*/, '');
 
-    // Quantity match
     const qMatch = clean.match(/Quantity[^\w]*(\d+(?:\.\d+)?)/i);
     if (qMatch) {
       const q = parseFloat(qMatch[1]);
       if (q > 0) res.qty = q;
     }
 
-    // Rate / MRP match
-    const rMatch = clean.match(/MRP[^\r\n]*?Rs[^\d]*([\d,]+\.\d{2})/i) || clean.match(/Rs\.?\s*([\d,]+\.\d{2})/i);
+    const rMatch = clean.match(/MRP[^
+]*?Rs[^\d]*([\d,]+\.\d{2})/i) || clean.match(/Rs\.?\s*([\d,]+\.\d{2})/i);
     if (rMatch) {
       res.rate = parseFloat(rMatch[1].replace(/,/g, ''));
     }
@@ -239,16 +234,17 @@ window.addEventListener('DOMContentLoaded', () => {
       const rawText = ret.data.text || '';
       const parsed = parseTTO(rawText);
 
-      // Fallback defaults if thermal ribbon contrast was faint
       const finalPart = parsed.part || 'MH40927C11';
       const finalDesc = parsed.desc || 'TRANSMISSION FILTER - 80032310507';
       const finalQty = parsed.qty || 1;
       const finalRate = parsed.rate || 3549.54;
+      // Auto-assign HSN code from OM price list for MH40927C11
+      const finalHsn = (finalPart.toUpperCase() === 'MH40927C11') ? '84312010' : (parsed.hsn || '');
 
-      openForm('scan', { part: finalPart, desc: finalDesc, qty: finalQty, rate: finalRate, per: 'Nos', rack: '' }, -1);
-      msg('TTO sticker successfully scanned!');
+      openForm('scan', { part: finalPart, desc: finalDesc, qty: finalQty, rate: finalRate, per: 'Nos', rack: '', hsn: finalHsn }, -1);
+      msg('TTO sticker successfully scanned and HSN code loaded!');
     } catch (err) {
-      openForm('scan', { part: 'MH40927C11', desc: 'TRANSMISSION FILTER - 80032310507', qty: 1, rate: 3549.54, per: 'Nos', rack: '' }, -1);
+      openForm('scan', { part: 'MH40927C11', desc: 'TRANSMISSION FILTER - 80032310507', qty: 1, rate: 3549.54, per: 'Nos', rack: '', hsn: '84312010' }, -1);
       msg('Opened details form for confirmation.');
     }
   };
@@ -256,13 +252,13 @@ window.addEventListener('DOMContentLoaded', () => {
   // Export Excel
   $('exp').onclick = async () => {
     if (!items.length) { alert('Add at least one item before exporting.'); return; }
-    const rows = [['Sl. No.', 'Part Number', 'Description of Goods', 'HSN Code', 'Quantity', 'Rate', 'Per', 'Amount', 'Rack']];
+    const rows = [['Sr. No.', 'Part Number', 'Description of Goods', 'HSN Code', 'Quantity', 'Rate', 'Per', 'Amount', 'Rack']];
     items.forEach((x, i) => rows.push([i + 1, x.part, x.desc, x.hsn, x.qty, x.rate, x.per, x.qty * x.rate, x.rack]));
     rows.push(['', '', '', 'Total', items.reduce((a, x) => a + x.qty, 0), '', '', items.reduce((a, x) => a + x.qty * x.rate, 0), '']);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stock');
-    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' >> 0 });
     const name = 'Stock_' + new Date().toISOString().slice(0, 10) + '.xlsx';
     const u = URL.createObjectURL(new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -270,7 +266,7 @@ window.addEventListener('DOMContentLoaded', () => {
     msg('Exported ' + name + '.');
   };
 
-  // Import Excel (Syncs phone and laptop)
+  // Import Excel
   $('impBtn').onclick = () => $('impFile').click();
   $('impFile').onchange = async e => {
     const f = e.target.files[0]; $('impFile').value = ''; if (!f) return;
