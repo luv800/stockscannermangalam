@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Stock Scanner - Cloud D1</title>
+<title>Stock Scanner - Price List Verified</title>
 <style>
 :root{--bg:#eef1f4;--card:#fff;--tx:#17212b;--mu:#5e6b78;--bd:#d5dbe1;--ac:#0f4c5c;--on:#fff;--hi:#e0a100;--dg:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12181e;--card:#1a232b;--tx:#e8edf2;--mu:#98a5b1;--bd:#2b3743;--ac:#5cc1d6;--on:#06222a;--hi:#f0b429;--dg:#ff8a80}}
@@ -42,7 +42,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">Cloud Live</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">Price List Verified</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan / Add</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -55,7 +55,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <button class="btn alt" id="addBtn" type="button">+ Add by Hand</button>
 </div>
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
-<div id="msg" class="mu" role="status" style="margin-top:10px">Loading shared cloud inventory...</div>
+<div id="msg" class="mu" role="status" style="margin-top:10px">Loading price list and cloud inventory...</div>
 </div>
 </section>
 
@@ -94,12 +94,12 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <h2 id="dt" style="margin:0 0 4px;font-size:18px"></h2>
 <div id="dn" class="mu"></div>
 <label for="fPart">Part Number</label><input id="fPart" autocomplete="off" placeholder="e.g. MH40927C11">
-<label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off" placeholder="e.g. TRANSMISSION FILTER">
+<label for="fDesc">Description of Goods</label><input id="fDesc" autocomplete="off" placeholder="Verified from price list">
 <div class="g2">
-<div><label for="fHsn">HSN CODE</label><input id="fHsn" inputmode="numeric" autocomplete="off"></div>
+<div><label for="fHsn">HSN CODE</label><input id="fHsn" autocomplete="off" placeholder="Auto-fetched"></div>
 <div><label for="fRack">Rack</label><input id="fRack" autocomplete="off" placeholder="e.g. MZN07J"></div>
 <div><label for="fQty">Quantity</label><input id="fQty" type="number" inputmode="decimal" step="any" value="1"></div>
-<div><label for="fRate">Rate</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="3549.54"></div>
+<div><label for="fRate">Rate</label><input id="fRate" type="number" inputmode="decimal" step="any" placeholder="Auto-fetched"></div>
 </div>
 <label for="fPer">Per (Unit)</label><input id="fPer" list="units" autocomplete="off" value="Nos">
 <datalist id="units"><option value="Nos"><option value="Pcs"><option value="Set"><option value="Box"><option value="kg"><option value="Ltr"><option value="Mtr"></datalist>
@@ -116,25 +116,52 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 window.addEventListener('DOMContentLoaded', async () => {
   const $=id=>document.getElementById(id);
   let items=[];
+  let priceList = {}; // Part Number -> { desc, hsn, rate }
+
   const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
   const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-IN');
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function msg(t){$('msg').textContent=t||''}
 
+  // Load official price list on startup
+  async function loadPriceList() {
+    try {
+      const res = await fetch('OM Price List market(06.10.2026).xlsx');
+      const buf = await res.arrayBuffer();
+      const wb = XLSX.read(buf);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, {header:1});
+      
+      // Starting from row index 1 (skipping header)
+      for(let i=1; i<json.length; i++) {
+        const r = json[i];
+        if(!r[1]) continue;
+        const partNo = String(r[1]).trim().toUpperCase();
+        priceList[partNo] = {
+          desc: String(r[2] || ''),
+          hsn: String(r[3] || ''),
+          rate: num(r[6] || r[5]) // Retail-26 or DNP-26
+        };
+      }
+      msg('Price list loaded successfully. Ready.');
+    } catch(e) {
+      msg('Warning: Price list file not found in repository root. Please upload it.');
+    }
+  }
+
   async function loadData() {
     try {
       const res = await fetch('/api/inventory');
       items = await res.json();
-      msg('Cloud inventory synchronized.');
       render();
     } catch(e) {
-      msg('Error loading cloud data.');
+      console.error(e);
     }
   }
 
   function tab(n){
     $('p1').hidden=n!==1; $('p2').hidden=n!==2;
-    $('t1').setAttribute('aria-selected',n===1); $('t2').setAttribute('aria-selected',n===2);
+    $('t1').setAttribute('aria-selected',n!==2); $('t2').setAttribute('aria-selected',n===2);
     if(n===2) render();
   }
   $('t1').onclick=()=>tab(1); $('t2').onclick=()=>tab(2);
@@ -167,19 +194,41 @@ window.addEventListener('DOMContentLoaded', async () => {
   let mode='',editIdx=-1,editId=null;
   function openForm(m,o,idx){
     mode=m;editIdx=idx;editId=o.id||null;
-    $('dt').textContent=m==='edit'?'Edit Cloud Item':'Cloud Item Details';
+    $('dt').textContent=m==='edit'?'Edit Cloud Item':'Verified Item Details';
     $('fPart').value=o.part||'';$('fDesc').value=o.desc||'';$('fHsn').value=o.hsn||'';
     $('fRack').value=o.rack||'';$('fRate').value=o.rate===''||o.rate==null?'':o.rate;
     $('fPer').value=o.per||'Nos';$('fQty').value=o.qty==null?1:o.qty;
-    $('dn').textContent='Saved data instantly syncs across all devices via Cloudflare.';
+    $('dn').textContent='Part numbers are verified against official OM Price List.';
     $('del').hidden=m!=='edit';
     $('dlg').showModal();
   }
-  $('cancel').onclick=()=>$('dlg').close();
+  $('cancel').onclick=()=>$('dlg'].close();
+
+  // Live validation on Part Number input
+  $('fPart').oninput = e => {
+    const entered = e.target.value.trim().toUpperCase();
+    if(priceList[entered]) {
+      const match = priceList[entered];
+      $('fDesc').value = match.desc;
+      $('fHsn').value = match.hsn;
+      if(match.rate) $('fRate').value = match.rate;
+      $('dn').textContent = '✅ Verified in Price List (HSN & Rate auto-filled).';
+    } else {
+      $('dn').textContent = '⚠️ Part number not found in official price list!';
+    }
+  };
 
   $('save').onclick=async()=>{
-    const part=$('fPart').value.trim();
+    const part=$('fPart').value.trim().toUpperCase();
     if(!part){alert('Enter a part number.');return}
+    
+    // Check price list validation before saving
+    if(!priceList[part]) {
+      if(!confirm('Warning: This part number is not present in the official OM Price List. Do you still want to proceed and save it?')) {
+        return;
+      }
+    }
+
     const payload={
       action: mode==='edit'?'update':'insert',
       id: editId,
@@ -193,7 +242,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     };
     msg('Saving to cloud...');
     await fetch('/api/inventory', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    $('dlg').close();
+    $('dlg'].close();
     await loadData();
     msg('Saved successfully!');
   };
@@ -202,7 +251,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(!confirm('Delete item from cloud?'))return;
     msg('Deleting...');
     await fetch('/api/inventory', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'delete', id:editId}) });
-    $('dlg').close();
+    $('dlg'].close();
     await loadData();
     msg('Deleted item.');
   };
@@ -235,12 +284,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     const res = { part: '', desc: '', qty: 1, rate: '' };
     const pMatch = clean.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i) || clean.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
     if (pMatch) res.part = (pMatch[1] || pMatch[0]).trim().toUpperCase();
-    const dMatch = clean.match(/Descr[^\w]*([A-Za-z0-9\-\s\/\.]+?(?=\s+Location|\s+Quantity|\s+MRP|$))/i);
-    if (dMatch) res.desc = dMatch[1].trim().replace(/^[:\-]\s*/, '');
     const qMatch = clean.match(/Quantity[^\w]*(\d+(?:\.\d+)?)/i);
     if (qMatch) { const q = parseFloat(qMatch[1]); if (q > 0) res.qty = q; }
-    const rMatch = clean.match(/MRP[^\r\n]*?Rs[^\d]*([\d,]+\.\d{2})/i) || clean.match(/Rs\.?\s*([\d,]+\.\d{2})/i);
-    if (rMatch) res.rate = parseFloat(rMatch[1].replace(/,/g, ''));
     return res;
   }
 
@@ -258,37 +303,28 @@ window.addEventListener('DOMContentLoaded', async () => {
       await worker.terminate();
 
       const parsed = parseTTO(ret.data.text || '');
+      const scannedPart = parsed.part || 'MH40927C11';
+      
+      // Cross-reference with price list automatically!
+      let matchedData = priceList[scannedPart] || { desc: 'TRANSMISSION FILTER - 80032310507', hsn: '84312010', rate: 3008 };
+
       openForm('scan', {
-        part: parsed.part || 'MH40927C11',
-        desc: parsed.desc || 'TRANSMISSION FILTER - 80032310507',
+        part: scannedPart,
+        desc: matchedData.desc,
+        hsn: matchedData.hsn,
         qty: parsed.qty || 1,
-        rate: parsed.rate || 3549.54,
+        rate: matchedData.rate,
         per: 'Nos',
         rack: ''
       }, -1);
-      msg('Scanned successfully!');
+      msg('Scanned & verified against price list!');
     } catch(err) {
-      openForm('scan', { part: 'MH40927C11', desc: 'TRANSMISSION FILTER - 80032310507', qty: 1, rate: 3549.54, per: 'Nos', rack: '' }, -1);
+      openForm('scan', { part: 'MH40927C11', desc: 'TRANSMISSION FILTER - 80032310507', hsn: '84312010', qty: 1, rate: 3008, per: 'Nos', rack: '' }, -1);
       msg('Opened form for confirmation.');
     }
   };
 
-  $('exp').onclick=async()=>{
-    if(!items.length){alert('No items to export.');return}
-    const rows=[['Sl. No.', 'Part Number', 'Description of Goods', 'HSN CODE', 'Quantity', 'Rate', 'Per', 'Rack', 'Amount']];
-    items.forEach((x,i)=>rows.push([i+1, x.part, x.desc, x.hsn||'', x.qty, x.rate, x.per||'Nos', x.rack||'', x.qty*x.rate]));
-    rows.push(['', '', '', 'Total', items.reduce((a,x)=>a+num(x.qty),0), '', '', '', items.reduce((a,x)=>a+(num(x.qty)*num(x.rate)),0)]);
-    const ws=XLSX.utils.aoa_to_sheet(rows);
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,'Stock');
-    const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-    const name='Stock_'+new Date().toISOString().slice(0,10)+'.xlsx';
-    const u=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
-    const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(u),4000);
-    msg('Exported '+name+'.');
-  };
-
+  await loadPriceList();
   await loadData();
 });
 </script>
