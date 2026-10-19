@@ -116,14 +116,13 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 window.addEventListener('DOMContentLoaded', async () => {
   const $=id=>document.getElementById(id);
   let items=[];
-  let priceList = {}; // Part Number -> { desc, hsn, rate }
+  let priceList = {};
 
   const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
   const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-IN');
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function msg(t){$('msg').textContent=t||''}
 
-  // Load official price list on startup
   async function loadPriceList() {
     try {
       const res = await fetch('OM Price List market(06.10.2026).xlsx');
@@ -132,7 +131,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, {header:1});
       
-      // Starting from row index 1 (skipping header)
       for(let i=1; i<json.length; i++) {
         const r = json[i];
         if(!r[1]) continue;
@@ -140,12 +138,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         priceList[partNo] = {
           desc: String(r[2] || ''),
           hsn: String(r[3] || ''),
-          rate: num(r[6] || r[5]) // Retail-26 or DNP-26
+          rate: num(r[6] || r[5])
         };
       }
       msg('Price list loaded successfully. Ready.');
     } catch(e) {
-      msg('Warning: Price list file not found in repository root. Please upload it.');
+      msg('Warning: Price list file not found in repository root.');
     }
   }
 
@@ -202,9 +200,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     $('del').hidden=m!=='edit';
     $('dlg').showModal();
   }
-  $('cancel').onclick=()=>$('dlg'].close();
+  $('cancel').onclick=()=>$('dlg').close();
 
-  // Live validation on Part Number input
   $('fPart').oninput = e => {
     const entered = e.target.value.trim().toUpperCase();
     if(priceList[entered]) {
@@ -222,7 +219,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     const part=$('fPart').value.trim().toUpperCase();
     if(!part){alert('Enter a part number.');return}
     
-    // Check price list validation before saving
     if(!priceList[part]) {
       if(!confirm('Warning: This part number is not present in the official OM Price List. Do you still want to proceed and save it?')) {
         return;
@@ -242,7 +238,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     };
     msg('Saving to cloud...');
     await fetch('/api/inventory', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    $('dlg'].close();
+    $('dlg').close();
     await loadData();
     msg('Saved successfully!');
   };
@@ -251,7 +247,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(!confirm('Delete item from cloud?'))return;
     msg('Deleting...');
     await fetch('/api/inventory', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'delete', id:editId}) });
-    $('dlg'].close();
+    $('dlg').close();
     await loadData();
     msg('Deleted item.');
   };
@@ -305,7 +301,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       const parsed = parseTTO(ret.data.text || '');
       const scannedPart = parsed.part || 'MH40927C11';
       
-      // Cross-reference with price list automatically!
       let matchedData = priceList[scannedPart] || { desc: 'TRANSMISSION FILTER - 80032310507', hsn: '84312010', rate: 3008 };
 
       openForm('scan', {
@@ -322,6 +317,22 @@ window.addEventListener('DOMContentLoaded', async () => {
       openForm('scan', { part: 'MH40927C11', desc: 'TRANSMISSION FILTER - 80032310507', hsn: '84312010', qty: 1, rate: 3008, per: 'Nos', rack: '' }, -1);
       msg('Opened form for confirmation.');
     }
+  };
+
+  $('exp').onclick=async()=>{
+    if(!items.length){alert('No items to export.');return}
+    const rows=[['Sl. No.', 'Part Number', 'Description of Goods', 'HSN CODE', 'Quantity', 'Rate', 'Per', 'Rack', 'Amount']];
+    items.forEach((x,i)=>rows.push([i+1, x.part, x.desc, x.hsn||'', x.qty, x.rate, x.per||'Nos', x.rack||'', x.qty*x.rate]));
+    rows.push(['', '', '', 'Total', items.reduce((a,x)=>a+num(x.qty),0), '', '', '', items.reduce((a,x)=>a+(num(x.qty)*num(x.rate)),0)]);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Stock');
+    const data=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const name='Stock_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    const u=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    const a=document.createElement('a'); a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);
+    msg('Exported '+name+'.');
   };
 
   await loadPriceList();
