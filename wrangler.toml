@@ -1,0 +1,7 @@
+name = "stock-scanner"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "stock-db"
+database_id = "your-database-id-here"
