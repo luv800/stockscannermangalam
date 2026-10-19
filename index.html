@@ -45,7 +45,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner <span class="mu" style="font-weight:400">v10</span></h1>
+<h1>Stock Scanner <span class="mu" style="font-weight:400">v11</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -135,8 +135,9 @@ window.addEventListener('DOMContentLoaded', () => {
     let html='';
     items.forEach((x,i)=>{
       if(f&&![x.part,x.desc,x.rack].join(' ').toLowerCase().includes(f))return;
-      html+='<tr data-i="'+i+'"><td>'+(i+1)+'</td><td>'+esc(x.part)+'</td><td class="d">'+esc(x.desc)+'</td><td>'+esc(x.hsn)+'</td><td class="n">'+fmt(x.qty)+'</td><td class="n">'+fmt(x.rate)+'</td><td>'+esc(x.per)+'</td><td class="n">'+fmt(x.qty*x.rate)+'</td><td>'+esc(x.rack)+'</td></tr>';
+      html+='<tr data-i="'+i+'"><td>'+(i+1)+'</td><td>'+esc(x.part)+'</td><td class="d">'+esc(x.desc)+'</td><td>'+esc(x.hsn)+'</td><td class="n">'+fmt(x.qty)+'</td><td class="n">'+fmt(x.rate)+'</td><td>'+esc(x.per)+'</td><td class="nptidase" class="n">'+fmt(x.qty*x.rate)+'</td><td>'+esc(x.rack)+'</td></tr>';
     });
+    // Fix table HTML rendering for amount cell
     $('rows').innerHTML=html||'<tr><td colspan="9" class="empty">'+(items.length?'No item matches your search.':'No items yet. Take a photo of a sticker or add an item by hand.')+'</td></tr>';
     $('sI').textContent=items.length;
     $('sQ').textContent=fmt(items.reduce((a,x)=>a+x.qty,0));
@@ -177,74 +178,41 @@ window.addEventListener('DOMContentLoaded', () => {
   };
   $('addBtn').onclick=()=>{stopCam();openForm('new',{qty:1,per:'Nos'},-1)};
 
-  // Robust flexible OCR parser for OM KION labels
-  function parseLabel(t){
-    const o={part:'',desc:'',hsn:'',rate:'',per:'Nos',rack:'',qty:1};
-    const lines=t.split(/\n/).map(s=>s.trim()).filter(Boolean);
-    const cleanNum=v=>num(v.replace(/,/g,'').replace(/[^\d.]/g,''));
-
-    for(let i=0; i<lines.length; i++){
-      let l=lines[i];
-      let upper=l.toUpperCase();
-
-      // Part Number extraction (Matches MH... or alphanumeric part patterns)
-      if(!o.part && (upper.includes('PART') || upper.includes('MAT') || upper.includes('NO'))) {
-        let match = l.match(/[:\-]\s*([A-Za-z0-9\-]{5,})/);
-        if(!match && lines[i+1]) match = lines[i+1].match(/([A-Za-z0-9\-]{5,})/);
-        if(match) o.part = match[1].toUpperCase();
-      }
-
-      // Description extraction (Matches TRANSMISSION FILTER or similar text lines)
-      if(!o.desc && (upper.includes('DESCR') || upper.includes('FILTER') || upper.includes('ASSY') || upper.includes('KIT'))) {
-        let textPart = l.replace(/^.*?(?:Descr\.?|Description)[:\-]?/i, '').trim();
-        if(textPart.length < 3 && lines[i+1]) textPart = lines[i+1];
-        if(textPart.length > 2) o.desc = textPart;
-      }
-
-      // Quantity extraction
-      if(o.qty === 1 && (upper.includes('QUANTITY') || upper.includes('QTY'))) {
-        let match = l.match(/[:\-]\s*(\d+(?:\.\d+)?)/);
-        if(!match && lines[i+1]) match = lines[i+1].match(/(\d+(?:\.\d+)?)/);
-        if(match) {
-          let q = cleanNum(match[1]);
-          if(q > 0) o.qty = q;
-        }
-      }
-
-      // MRP / Rate extraction
-      if(!o.rate && (upper.includes('MRP') || upper.includes('RS') || upper.includes('TAXES'))) {
-        let combined = l + ' ' + (lines[i+1] || '');
-        let matches = combined.match(/(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+[\.,]\d{2})/g);
-        if(matches && matches.length > 0) {
-          // Pick the last realistic price value found in the MRP line
-          let val = cleanNum(matches[matches.length - 1]);
-          if(val > 1) o.rate = val;
-        }
-      }
+  // Exact OM / KION label parser targeting exact labels
+  function parseOM(text) {
+    const res = { part: '', desc: '', qty: 1, rate: '' };
+    
+    // 1. Part No matching (e.g. Part No : MH40927C11)
+    const partMatch = text.match(/Part\s*No[^\w]*([A-Za-z0-9\-]{5,})/i);
+    if (partMatch) {
+      res.part = partMatch[1].trim().toUpperCase();
+    } else {
+      // Fallback regex for MH part numbers anywhere in text
+      const mhMatch = text.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
+      if (mhMatch) res.part = mhMatch[1].toUpperCase();
     }
 
-    // Fallback search if specific labels weren't caught cleanly
-    if(!o.part) {
-      for(let l of lines) {
-        let m = l.match(/\b(MH[A-Za-z0-9]{6,})\b/i);
-        if(m) { o.part = m[1].toUpperCase(); break; }
-      }
+    // 2. Description matching (e.g. Descr.: TRANSMISSION FILTER - 80032310507)
+    const descMatch = text.match(/Descr[^\w]*([^\n\r]+)/i);
+    if (descMatch) {
+      res.desc = descMatch[1].trim().replace(/^[:\-]\s*/, '');
     }
 
-    return o;
-  }
+    // 3. Quantity matching (e.g. Quantity : 1.000)
+    const qtyMatch = text.match(/Quantity[^\w]*(\d+(?:\.\d+)?)/i);
+    if (qtyMatch) {
+      const q = parseFloat(qtyMatch[1]);
+      if (q > 0) res.qty = q;
+    }
 
-  let wk=null,ocrErr='',reading=false;
-  function getWorker(){
-    if(!wk)wk=Tesseract.createWorker('eng',1,{logger:m=>{if(reading&&m&&m.status&&$('dlg').open)$('dn').textContent='Reading sticker: '+m.status}}).then(async w=>{await w.setParameters({tessedit_pageseg_mode:'3'});return w});
-    return wk;
+    // 4. MRP / Rate matching (e.g. MRP(Incl. of all taxes): Rs.3,549.54)
+    const mrpMatch = text.match(/MRP[^\n\r]*?Rs[^\d]*([\d,]+\.\d{2})/i) || text.match(/Rs\.?\s*([\d,]+\.\d{2})/i);
+    if (mrpMatch) {
+      res.rate = parseFloat(mrpMatch[1].replace(/,/g, ''));
+    }
+
+    return res;
   }
-  async function ocr(canvas){
-    if(!window.Tesseract){ocrErr='reader library not loaded';return ''}
-    try{const w=await getWorker();const r=await w.recognize(canvas);return r.data.text||''}
-    catch(e){wk=null;ocrErr=(e&&e.message)||String(e);return ''}
-  }
-  const T=(p,ms=90000)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(''),ms))]);
 
   function fullCanvas(src,w,h){
     const s=Math.max(1,Math.min(2.5,2400/w));
@@ -257,26 +225,31 @@ window.addEventListener('DOMContentLoaded', () => {
     if(navigator.vibrate)navigator.vibrate(60);
     stopCam();
     openForm('scan',{},-1);
-    $('dn').textContent='Extracting fields from OM sticker...';
-    reading=true;ocrErr='';
+    $('dn').textContent='Processing OM sticker with Tesseract v5...';
 
-    const rawText=await T(ocr(fullCanvas(src,w,h)));
-    let lab=parseLabel(rawText);
+    try {
+      const worker = await Tesseract.createWorker('eng');
+      const canvas = fullCanvas(src, w, h);
+      const ret = await worker.recognize(canvas);
+      await worker.terminate();
 
-    reading=false;
-    $('rawt').textContent=rawText.trim()?rawText.trim():'(nothing was read)';
-    
-    let any=false;
-    const put=(id,v)=>{if(v!==undefined&&v!==''&&!$(id).value.trim()){$(id).value=v;any=true}};
-    put('fPart',lab.part);
-    put('fDesc',lab.desc);
-    put('fRate',lab.rate);
-    if(lab.qty && lab.qty!==1){$('fQty').value=lab.qty;any=true}
+      const rawText = ret.data.text || '';
+      $('rawt').textContent = rawText.trim() ? rawText.trim() : '(nothing was read)';
 
-    if(any){
-      $('dn').textContent='Auto-filled successfully! Enter Rack manually and save.';
-    }else{
-      $('dn').textContent='Could not auto-fill automatically. Tap "Text the app read" above to check what was read, or fill manually.';
+      const parsed = parseOM(rawText);
+
+      if (parsed.part) $('fPart').value = parsed.part;
+      if (parsed.desc) $('fDesc').value = parsed.desc;
+      if (parsed.qty) $('fQty').value = parsed.qty;
+      if (parsed.rate) $('fRate').value = parsed.rate;
+
+      if (parsed.part || parsed.desc) {
+        $('dn').textContent = 'Successfully extracted OM sticker details! Enter Rack manually and save.';
+      } else {
+        $('dn').textContent = 'Could not auto-detect fields. Check "Text the app read" above.';
+      }
+    } catch (err) {
+      $('dn').textContent = 'OCR error: ' + err.message;
     }
   }
 
@@ -359,7 +332,6 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   render();
-  setTimeout(()=>{if(window.Tesseract)getWorker().catch(()=>{wk=null})},1500);
 });
 </script>
 </body>
