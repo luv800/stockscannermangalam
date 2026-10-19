@@ -66,7 +66,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </div>
 <div class="card mu">
 <b style="color:var(--tx)">What the QR code can hold</b><br>
-Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON with those names, or just the part number. A scan of a part number already in your list adds to its quantity.
+Full details as <code>Part Number|Description|HSN|Rate|Per|Rack</code>, or JSON with those names, or just the part number. A scan of a part number already in your list adds to its quantity.[cite: 1]
 </div>
 </section>
 
@@ -224,13 +224,10 @@ const cv=document.createElement('canvas');
 async function decode(src,w,h){
   if(det){try{const r=await det.detect(src);if(r.length)return r[0].rawValue}catch(e){}}
   if(window.jsQR){
-    for(const mw of [1600,1000,640]){
-      const s=Math.min(1,mw/w);cv.width=Math.round(w*s);cv.height=Math.round(h*s);
-      const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,cv.width,cv.height);
-      const d=x.getImageData(0,0,cv.width,cv.height);const q=jsQR(d.data,d.width,d.height,{inversionAttempts:'attemptBoth'});
-      if(q)return q.data;
-      if(s===1)break;
-    }
+    const s=Math.min(1,720/w);cv.width=Math.round(w*s);cv.height=Math.round(h*s);
+    const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,cv.width,cv.height);
+    const d=x.getImageData(0,0,cv.width,cv.height);const q=jsQR(d.data,d.width,d.height);
+    if(q)return q.data;
   }
   return null;
 }
@@ -271,7 +268,7 @@ $('file').onchange=async e=>{
   try{
     const b=await createImageBitmap(f);
     const r=await decode(b,b.width,b.height);
-    if(r){stopCam();got(r)}else msg(window.jsQR||det?'No QR code found in that photo. Move closer so the code fills most of the photo, keep it flat and sharp, and avoid glare.':'The QR reader did not load. Check your internet connection and reload the page.');
+    if(r){stopCam();got(r)}else msg('No QR code found in that photo. Try again with the code filling more of the frame.');
   }catch(err){msg('That image could not be read.')}
 };
 
