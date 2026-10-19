@@ -42,7 +42,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </head>
 <body>
 <main>
-<h1>Stock Scanner (Cloud D1) <span class="mu" style="font-weight:400">v23</span></h1>
+<h1>Stock Scanner (Cloud D1) <span class="mu" style="font-weight:400">v24</span></h1>
 <div class="tabs" role="tablist">
 <button id="t1" role="tab" aria-selected="true" type="button">Scan / Add</button>
 <button id="t2" role="tab" aria-selected="false" type="button">Stock list</button>
@@ -120,10 +120,11 @@ window.addEventListener('DOMContentLoaded', () => {
         render();
         msg('Ready. Connected to Cloudflare D1 Database.');
       } else {
-        msg('Error loading from cloud database.');
+        const errText = await res.text();
+        msg('Cloud Load Error (' + res.status + '): ' + errText);
       }
     } catch (e) {
-      msg('Network error connecting to cloud database.');
+      msg('Network error connecting to cloud database: ' + e.message);
     }
   }
 
@@ -133,13 +134,26 @@ window.addEventListener('DOMContentLoaded', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(o)
     });
-    if (!res.ok) throw new Error('Failed to save to cloud');
+    
+    if (!res.ok) {
+      let errorMsg = 'Unknown server error';
+      try {
+        const errJson = await res.json();
+        errorMsg = errJson.error || res.statusText;
+      } catch (e) {
+        errorMsg = await res.text() || res.statusText;
+      }
+      throw new Error(errorMsg);
+    }
     await loadCloudItems();
   }
 
   async function deleteFromCloud(part) {
     const res = await fetch('/invantory?part=' + encodeURIComponent(part), { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to delete from cloud');
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText || 'Failed to delete from cloud');
+    }
     await loadCloudItems();
   }
 
@@ -181,7 +195,7 @@ window.addEventListener('DOMContentLoaded', () => {
   $('save').onclick = async () => {
     const part = $('fPart').value.trim();
     if (!part) { alert('Enter a part number.'); return; }
-    const o = { part, desc: $('fDesc').value.trim(), hsn: $('fHsn').value.trim(), qty: num($('fQty').value), rate: num($('fRate').value), per: $('fPer').value.trim() || 'Nos', rack: $('fRack').value.trim() };
+    const o = { part, desc: $('fDesc').value.trim(), hsn: $('fHsn').value.trim(), qty: num($('fQty').value), rate: num($('fRate').value), per: $('fPer'].value.trim() || 'Nos', rack: $('fRack').value.trim() };
     
     msg('Saving to cloud database...');
     try {
@@ -190,6 +204,7 @@ window.addEventListener('DOMContentLoaded', () => {
       $('dlg').close();
     } catch (err) {
       alert('Error saving to database: ' + err.message);
+      msg('Save failed: ' + err.message);
     }
   };
 
