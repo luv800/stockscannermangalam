@@ -6,8 +6,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0f172a" />
-  <title>QuickBill POS — Mobile Billing & Inventory</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>QuickBill POS — Camera Scanner & Billing</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <!-- Live Camera Barcode & QR Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- OCR Library for reading Part Numbers from Stickers -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -22,6 +26,11 @@
     .mono { font-family: 'JetBrains Mono', monospace; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    #camera-reader video {
+      border-radius: 0.75rem;
+      object-fit: cover;
+      width: 100% !important;
+    }
     @media print {
       body * { visibility: hidden !important; }
       #printable-receipt, #printable-receipt * { visibility: visible !important; }
@@ -52,21 +61,16 @@
             <h1 id="header-store-name" class="font-bold text-sm sm:text-base tracking-tight truncate">MANGALAM INFRA MACHINERY PVT LTD</h1>
             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">LIVE</span>
           </div>
-          <p id="header-sub" class="text-[11px] text-slate-400 truncate">Android &amp; iOS Touch Billing</p>
+          <p class="text-[11px] text-slate-400 truncate">Camera Barcode &amp; Sticker OCR Billing</p>
         </div>
       </div>
 
       <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        <button id="btn-open-custom-item" type="button" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-95 text-xs font-medium text-emerald-300 border border-slate-700 flex items-center gap-1 transition">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+        <button id="btn-header-scan" type="button" class="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-xs font-bold text-slate-950 flex items-center gap-1.5 shadow-sm transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8h1v8H7V8zm3 0h2v8h-2V8zm4 0h1v8h-1V8zm3 0h1v8h-1V8z" />
           </svg>
-          <span>Quick Item</span>
-        </button>
-        <button id="btn-open-install-guide" type="button" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Install on Android / iPhone">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
+          <span>Camera Scan</span>
         </button>
       </div>
     </div>
@@ -75,29 +79,16 @@
     <nav class="bg-slate-800/90 border-t border-slate-700/80 px-2 sm:px-6">
       <div class="max-w-7xl mx-auto grid grid-cols-4 gap-1 py-1">
         <button type="button" data-tab="pos" class="nav-tab-btn flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs sm:text-sm font-semibold transition bg-emerald-500 text-slate-950 shadow-sm">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
           <span>Counter</span>
         </button>
         <button type="button" data-tab="orders" class="nav-tab-btn flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-300 hover:text-white hover:bg-slate-700/60">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
           <span>Bills</span>
           <span id="nav-orders-badge" class="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-slate-700 text-slate-200">0</span>
         </button>
         <button type="button" data-tab="inventory" class="nav-tab-btn flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-300 hover:text-white hover:bg-slate-700/60">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-          </svg>
           <span>Items</span>
         </button>
         <button type="button" data-tab="settings" class="nav-tab-btn flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-300 hover:text-white hover:bg-slate-700/60">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
           <span>Store</span>
         </button>
       </div>
@@ -109,75 +100,73 @@
 
     <!-- TAB 1: POS COUNTER -->
     <section id="tab-pos" class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-
-      <!-- Left Column: Search, Categories, Product Grid -->
       <div class="lg:col-span-7 xl:col-span-8 space-y-3">
+        <!-- Search & Camera Scan Row -->
         <div class="flex gap-2">
           <div class="relative flex-1">
             <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <input id="pos-search-input" type="text" placeholder="Search part number (e.g. MH02654408), description, or HSN..." class="w-full pl-9 pr-8 py-2.5 bg-white rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm" />
-            <button id="btn-clear-search" type="button" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <input id="pos-search-input" type="text" placeholder="Search part number (e.g. MH02654408), description, or scan..." class="w-full pl-9 pr-8 py-2.5 bg-white rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm" />
+            <button id="btn-clear-search" type="button" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">✕</button>
           </div>
-          <button id="btn-scan-barcode" type="button" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0">
-            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8h1v8H7V8zm3 0h2v8h-2V8zm4 0h1v8h-1V8zm3 0h1v8h-1V8z" />
+          <button id="btn-scan-barcode" type="button" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm transition shrink-0">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
             <span>Scan</span>
           </button>
         </div>
 
+        <!-- Category Filter Pills -->
         <div id="category-pills-container" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1"></div>
+
+        <!-- Product Grid -->
         <div id="pos-product-grid" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5"></div>
       </div>
 
-      <!-- Right Column: Active Bill / Cart -->
-      <div id="cart-panel-wrapper" class="hidden lg:block lg:col-span-5 xl:col-span-4 lg:sticky lg:top-28">
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-8.5rem)]">
+      <!-- Right Column: Active Bill -->
+      <div id="cart-panel-wrapper" class="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-28">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div class="p-3.5 bg-slate-900 text-white flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
               <h2 class="font-bold text-sm tracking-tight">Current Bill</h2>
               <span id="cart-count-badge" class="px-2 py-0.5 text-xs rounded-full bg-slate-800 text-emerald-300 font-semibold mono">0 items</span>
             </div>
-            <div class="flex items-center gap-2">
-              <button id="btn-clear-cart" type="button" class="text-xs text-rose-300 hover:text-rose-200 font-medium px-2 py-1 rounded hover:bg-slate-800 transition">Clear</button>
-              <button id="btn-close-mobile-cart" type="button" class="lg:hidden p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white">✕</button>
-            </div>
+            <button id="btn-clear-cart" type="button" class="text-xs text-rose-300 hover:text-rose-200 font-medium px-2 py-1 rounded hover:bg-slate-800 transition">Clear</button>
           </div>
 
           <div class="p-2.5 bg-slate-50 border-b border-slate-200 grid grid-cols-2 gap-2">
             <div>
-              <label for="cart-customer-name" class="block text-[10px] font-semibold uppercase text-slate-400 mb-0.5">Customer / Party</label>
-              <input id="cart-customer-name" type="text" placeholder="Walk-in Customer" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              <label class="block text-[10px] font-semibold uppercase text-slate-400 mb-0.5">Customer / Party Name</label>
+              <input id="cart-customer-name" type="text" placeholder="Walk-in Client" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             </div>
             <div>
-              <label for="cart-customer-phone" class="block text-[10px] font-semibold uppercase text-slate-400 mb-0.5">Phone (WhatsApp)</label>
+              <label class="block text-[10px] font-semibold uppercase text-slate-400 mb-0.5">Phone (WhatsApp)</label>
               <input id="cart-customer-phone" type="tel" placeholder="e.g. 9876543210" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 mono" />
             </div>
           </div>
 
-          <div id="cart-items-list" class="flex-1 overflow-y-auto divide-y divide-slate-100 p-2.5 space-y-1.5 min-h-[160px] max-h-[280px]"></div>
+          <!-- Cart Items -->
+          <div id="cart-items-list" class="flex-1 overflow-y-auto divide-y divide-slate-100 p-2.5 space-y-1.5 min-h-[180px] max-h-[300px]"></div>
 
-          <div class="p-3 bg-slate-50 border-t border-slate-200 space-y-2 text-xs overflow-y-auto">
+          <!-- Totals & Payment -->
+          <div class="p-3 bg-slate-50 border-t border-slate-200 space-y-2 text-xs">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-1.5">
                 <label class="text-slate-600 font-medium">Discount:</label>
-                <input id="cart-discount-input" type="number" min="0" step="1" value="0" class="w-16 px-2 py-1 rounded border border-slate-200 bg-white text-right mono font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                <select id="cart-discount-type" class="px-1.5 py-1 rounded border border-slate-200 bg-white font-semibold text-slate-700">
+                <input id="cart-discount-input" type="number" min="0" step="1" value="0" class="w-16 px-2 py-1 rounded border border-slate-200 bg-white text-right mono font-semibold" />
+                <select id="cart-discount-type" class="px-1.5 py-1 rounded border border-slate-200 bg-white font-semibold">
                   <option value="percent">%</option>
                   <option value="flat">₹</option>
                 </select>
               </div>
               <div class="flex items-center gap-1.5">
                 <label class="text-slate-600 font-medium">GST:</label>
-                <select id="cart-tax-mode" class="px-2 py-1 rounded border border-slate-200 bg-white font-medium text-slate-700">
-                  <option value="exclusive">Exclusive (+GST)</option>
+                <select id="cart-tax-mode" class="px-2 py-1 rounded border border-slate-200 bg-white font-medium">
+                  <option value="exclusive">Exclusive (+18%)</option>
                   <option value="inclusive">Inclusive (MRP)</option>
                   <option value="none">No GST (0%)</option>
                 </select>
@@ -187,7 +176,7 @@
             <div class="space-y-1 pt-1 border-t border-slate-200/80">
               <div class="flex justify-between text-slate-500"><span>Subtotal</span><span id="summary-subtotal" class="mono">₹0.00</span></div>
               <div class="flex justify-between text-emerald-600"><span>Discount</span><span id="summary-discount" class="mono">-₹0.00</span></div>
-              <div class="flex justify-between text-slate-500"><span>GST (CGST + SGST)</span><span id="summary-tax" class="mono">₹0.00</span></div>
+              <div class="flex justify-between text-slate-500"><span>GST (18%)</span><span id="summary-tax" class="mono">₹0.00</span></div>
               <div class="flex justify-between items-baseline text-base font-extrabold text-slate-900 pt-1 border-t border-slate-200">
                 <span>Grand Total</span>
                 <span id="summary-grand-total" class="mono text-lg text-emerald-600">₹0.00</span>
@@ -196,20 +185,15 @@
 
             <div class="pt-1">
               <span class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Payment Method</span>
-              <div class="grid grid-cols-4 gap-1.5">
-                <button type="button" data-pay="UPI" class="pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold transition bg-emerald-50 border-emerald-500 text-emerald-800">📱 UPI QR</button>
-                <button type="button" data-pay="Cash" class="pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold transition bg-white border-slate-200 text-slate-600 hover:bg-slate-100">💵 Cash</button>
-                <button type="button" data-pay="Card" class="pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold transition bg-white border-slate-200 text-slate-600 hover:bg-slate-100">💳 Card</button>
-                <button type="button" data-pay="Khata" class="pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold transition bg-white border-slate-200 text-slate-600 hover:bg-slate-100">📒 Khata</button>
+              <div class="grid grid-cols-4 gap-1.5" id="payment-mode-buttons">
+                <button type="button" data-pay="UPI" class="pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold bg-emerald-50 border-emerald-500 text-emerald-800">📱 UPI</button>
+                <button type="button" data-pay="Cash" class="pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold bg-white border-slate-200 text-slate-600">💵 Cash</button>
+                <button type="button" data-pay="Card" class="pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold bg-white border-slate-200 text-slate-600">💳 Card</button>
+                <button type="button" data-pay="Khata" class="pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold bg-white border-slate-200 text-slate-600">📒 Khata</button>
               </div>
             </div>
 
-            <div id="payment-extra-box" class="mt-2 p-2.5 rounded-xl bg-white border border-slate-200"></div>
-
-            <button id="btn-complete-sale" type="button" class="w-full py-3 mt-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
+            <button id="btn-complete-sale" type="button" class="w-full py-3 mt-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition">
               <span>Generate Bill &amp; Print</span>
             </button>
           </div>
@@ -217,248 +201,134 @@
       </div>
     </section>
 
-    <!-- TAB 2: BILLS / ORDERS HISTORY -->
+    <!-- TAB 2: ORDERS HISTORY -->
     <section id="tab-orders" class="hidden space-y-4">
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
           <p class="text-[11px] font-semibold uppercase text-slate-400">Total Sales</p>
           <p id="stat-total-revenue" class="text-xl font-extrabold text-slate-900 mono mt-0.5">₹0.00</p>
-          <p id="stat-total-orders" class="text-[11px] text-emerald-600 font-medium mt-0.5">0 bills generated</p>
         </div>
         <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
-          <p class="text-[11px] font-semibold uppercase text-slate-400">UPI / Digital</p>
-          <p id="stat-upi-total" class="text-xl font-extrabold text-indigo-600 mono mt-0.5">₹0.00</p>
-          <p class="text-[11px] text-slate-400 mt-0.5">QR &amp; Card payments</p>
-        </div>
-        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
-          <p class="text-[11px] font-semibold uppercase text-slate-400">Cash Drawer</p>
-          <p id="stat-cash-total" class="text-xl font-extrabold text-emerald-600 mono mt-0.5">₹0.00</p>
-          <p class="text-[11px] text-slate-400 mt-0.5">Collected in cash</p>
-        </div>
-        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
-          <p class="text-[11px] font-semibold uppercase text-slate-400">Khata (Credit Due)</p>
-          <p id="stat-khata-total" class="text-xl font-extrabold text-amber-600 mono mt-0.5">₹0.00</p>
-          <p class="text-[11px] text-slate-400 mt-0.5">Pending customer dues</p>
+          <p class="text-[11px] font-semibold uppercase text-slate-400">Bills Count</p>
+          <p id="stat-total-orders" class="text-xl font-extrabold text-emerald-600 mono mt-0.5">0</p>
         </div>
       </div>
-
-      <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          <button type="button" data-order-filter="ALL" class="order-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white">All Bills</button>
-          <button type="button" data-order-filter="UPI" class="order-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200">UPI</button>
-          <button type="button" data-order-filter="Cash" class="order-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200">Cash</button>
-          <button type="button" data-order-filter="Card" class="order-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200">Card</button>
-          <button type="button" data-order-filter="Khata" class="order-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200">Khata Due</button>
-        </div>
-        <button id="btn-export-orders-csv" type="button" class="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1.5 transition">
-          <span>⬇️ Export CSV</span>
-        </button>
-      </div>
-
       <div id="orders-list-container" class="space-y-2.5"></div>
     </section>
 
     <!-- TAB 3: INVENTORY -->
     <section id="tab-inventory" class="hidden space-y-4">
-      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
-          <h2 class="text-base font-bold text-slate-900">Product Catalog &amp; Stock</h2>
-          <p class="text-xs text-slate-500">Add new items, update prices, GST rates, or restock inventory</p>
+          <h2 class="text-base font-bold text-slate-900">Spare Parts Catalog</h2>
+          <p class="text-xs text-slate-500">Showing active items with HSN &amp; 18% GST</p>
         </div>
-        <button id="btn-open-add-product" type="button" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm transition">
-          <span>+ Add New Part</span>
-        </button>
       </div>
       <div id="inventory-list-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
     </section>
 
-    <!-- TAB 4: STORE SETTINGS -->
+    <!-- TAB 4: SETTINGS -->
     <section id="tab-settings" class="hidden max-w-2xl mx-auto space-y-4">
       <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <div class="border-b border-slate-100 pb-3">
-          <h2 class="text-base font-bold text-slate-900">Store Profile &amp; Receipt Header</h2>
-          <p class="text-xs text-slate-500">These details appear on thermal receipts, WhatsApp bills, and UPI QR codes.</p>
+        <h2 class="text-base font-bold text-slate-900 border-b pb-2">Company &amp; Invoice Settings</h2>
+        <div class="space-y-3 text-xs sm:text-sm">
+          <div>
+            <label class="font-semibold text-slate-700">Company Name</label>
+            <input id="set-store-name" type="text" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200" />
+          </div>
+          <div>
+            <label class="font-semibold text-slate-700">GSTIN</label>
+            <input id="set-store-gstin" type="text" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200 mono" />
+          </div>
+          <div>
+            <label class="font-semibold text-slate-700">Address</label>
+            <input id="set-store-address" type="text" class="w-full mt-1 px-3 py-2 rounded-xl border border-slate-200" />
+          </div>
         </div>
-        <form id="form-store-settings" class="space-y-3.5 text-sm">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Business Name</label>
-              <input id="set-store-name" type="text" required class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Contact / State Info</label>
-              <input id="set-store-phone" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Shop Address</label>
-            <input id="set-store-address" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">GSTIN</label>
-              <input id="set-store-gstin" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 mono uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Merchant UPI ID (for QR)</label>
-              <input id="set-store-upi" type="text" placeholder="e.g. mangalam@upi" class="w-full px-3 py-2 rounded-xl border border-slate-200 mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Receipt Footer</label>
-            <input id="set-receipt-footer" type="text" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-          </div>
-          <div class="pt-2 flex flex-wrap items-center justify-between gap-2">
-            <button type="submit" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-sm transition">Save Store Settings</button>
-            <button id="btn-reset-demo-data" type="button" class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs transition">Reset Demo Data</button>
-          </div>
-        </form>
       </div>
     </section>
 
   </main>
 
-  <!-- Mobile Bottom Sticky Cart Bar -->
-  <div id="mobile-bottom-cart-bar" class="lg:hidden fixed bottom-0 inset-x-0 z-30 p-3 bg-gradient-to-t from-slate-900/95 via-slate-900/90 to-transparent pointer-events-none no-print">
-    <div class="max-w-md mx-auto bg-slate-900 text-white rounded-2xl p-3 shadow-xl border border-slate-700 flex items-center justify-between gap-3 pointer-events-auto">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-extrabold text-emerald-300 mono text-sm" id="mobile-bar-count">0</div>
-        <div>
-          <p class="text-[11px] text-slate-400 font-medium">Current Bill Total</p>
-          <p class="text-base font-extrabold text-white mono" id="mobile-bar-total">₹0.00</p>
+  <!-- ==================== CAMERA SCANNER MODAL (BARCODE + OCR) ==================== -->
+  <div id="modal-camera-scanner" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 no-print">
+    <div class="bg-slate-900 text-white rounded-2xl max-w-md w-full p-4 shadow-2xl border border-slate-700 space-y-3">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+          <h3 class="font-bold text-sm">Phone Camera Scanner</h3>
+        </div>
+        <button id="btn-close-scanner" type="button" class="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white">✕</button>
+      </div>
+
+      <!-- Camera Viewport -->
+      <div class="relative bg-black rounded-xl overflow-hidden border border-slate-700 min-h-[250px] flex items-center justify-center">
+        <div id="camera-reader" class="w-full"></div>
+        <!-- Targeting Overlay for OCR -->
+        <div class="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2 h-20 border-2 border-emerald-400/80 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] flex items-end justify-center pb-1">
+          <span class="text-[10px] font-semibold uppercase tracking-wider bg-slate-900/80 text-emerald-300 px-2 py-0.5 rounded">Align Barcode or Part No. Sticker</span>
         </div>
       </div>
-      <button id="btn-open-mobile-cart" type="button" class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition">
-        <span>View Bill &amp; Pay →</span>
-      </button>
+
+      <!-- Status & OCR Result Box -->
+      <div id="scanner-status-bar" class="px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-700 text-xs flex items-center justify-between">
+        <span id="scanner-status-text" class="text-slate-300 truncate">Point rear camera at barcode or sticker...</span>
+        <span id="scanner-last-code" class="font-bold text-emerald-400 mono ml-2"></span>
+      </div>
+
+      <!-- Camera Controls: OCR Snap, Camera Switch, File Upload Fallback -->
+      <div class="grid grid-cols-2 gap-2">
+        <button id="btn-ocr-capture" type="button" class="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+          </svg>
+          <span>Read Sticker Text (OCR)</span>
+        </button>
+
+        <label class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer transition">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span>Photo / Gallery</span>
+          <input id="input-camera-photo" type="file" accept="image/*" capture="environment" class="hidden" />
+        </label>
+      </div>
+
+      <!-- Manual Code Entry Fallback -->
+      <div class="flex gap-1.5 pt-1 border-t border-slate-800">
+        <input id="manual-scan-input" type="text" placeholder="Or type/paste code (e.g. MH02654408)" class="flex-1 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white mono focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+        <button id="btn-manual-scan-submit" type="button" class="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-bold text-emerald-300">Add</button>
+      </div>
     </div>
   </div>
 
-  <!-- MODAL 1: RECEIPT PREVIEW -->
+  <!-- RECEIPT MODAL -->
   <div id="modal-receipt" class="hidden fixed inset-0 z-50 bg-slate-900/75 flex items-center justify-center p-3 overflow-y-auto">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-4 shadow-2xl border border-slate-200 my-auto space-y-3">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 no-print">
-        <div class="flex items-center gap-2">
-          <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">✓</span>
-          <h3 class="font-bold text-sm text-slate-900">Thermal Receipt Ready</h3>
-        </div>
-        <button id="btn-close-receipt-modal" type="button" class="p-1 rounded-lg text-slate-400 hover:text-slate-600">✕</button>
+    <div class="bg-white rounded-2xl max-w-sm w-full p-4 shadow-2xl border border-slate-200 space-y-3">
+      <div class="flex items-center justify-between border-b pb-2 no-print">
+        <h3 class="font-bold text-sm">Tax Invoice / Receipt</h3>
+        <button id="btn-close-receipt-modal" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
       </div>
       <div id="printable-receipt" class="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 text-xs mono text-slate-900 space-y-2"></div>
       <div class="grid grid-cols-2 gap-2 pt-1 no-print">
-        <button id="btn-print-receipt" type="button" class="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs">🖨️ Print / PDF</button>
-        <button id="btn-share-whatsapp" type="button" class="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">📋 Copy WhatsApp</button>
+        <button id="btn-print-receipt" class="py-2.5 px-3 rounded-xl bg-slate-900 text-white font-bold text-xs">🖨️ Print / PDF</button>
+        <button id="btn-share-whatsapp" class="py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs">📋 Copy WhatsApp</button>
       </div>
-      <button id="btn-new-sale-after-receipt" type="button" class="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition no-print">Start Next Bill</button>
     </div>
   </div>
 
-  <!-- MODAL 2: ADD PRODUCT / QUICK ITEM -->
-  <div id="modal-product" class="hidden fixed inset-0 z-50 bg-slate-900/75 flex items-center justify-center p-3 no-print">
-    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-        <h3 id="modal-product-title" class="font-bold text-base text-slate-900">Add Spare Part</h3>
-        <button id="btn-close-product-modal" type="button" class="p-1 rounded-lg text-slate-400 hover:text-slate-600">✕</button>
-      </div>
-      <form id="form-product" class="space-y-3 text-xs sm:text-sm">
-        <input id="prod-mode" type="hidden" value="catalog" />
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Part No / SKU *</label>
-            <input id="prod-sku" type="text" required placeholder="e.g. MH40494" class="w-full px-3 py-2 rounded-xl border border-slate-200 mono uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">HSN Code</label>
-            <input id="prod-hsn" type="text" value="84312010" class="w-full px-3 py-2 rounded-xl border border-slate-200 mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Part Description *</label>
-          <input id="prod-name" type="text" required placeholder="e.g. ELEMENT, LUB OIL FILTER" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">MRP / Selling Price (₹) *</label>
-            <input id="prod-price" type="number" required min="0" step="0.01" placeholder="0.00" class="w-full px-3 py-2 rounded-xl border border-slate-200 mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">GST Rate (%)</label>
-            <select id="prod-gst" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">
-              <option value="0">0% GST</option>
-              <option value="5">5% GST</option>
-              <option value="12">12% GST</option>
-              <option value="18" selected>18% GST</option>
-              <option value="28">28% GST</option>
-            </select>
-          </div>
-        </div>
-        <div id="catalog-only-fields" class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Category</label>
-            <select id="prod-category" class="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white">
-              <option value="Filters & Elements">Filters &amp; Elements</option>
-              <option value="Bearings & Bushes">Bearings &amp; Bushes</option>
-              <option value="Hydraulics & Seals">Hydraulics &amp; Seals</option>
-              <option value="Brakes & Clutch">Brakes &amp; Clutch</option>
-              <option value="Tyres, Rims & Axle">Tyres, Rims &amp; Axle</option>
-              <option value="Electrical & Motors">Electrical &amp; Motors</option>
-              <option value="Fasteners & Hardware">Fasteners &amp; Hardware</option>
-              <option value="Engine & Cooling">Engine &amp; Cooling</option>
-              <option value="Forks, Mast & Chain">Forks, Mast &amp; Chain</option>
-              <option value="General Spares">General Spares</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Stock Qty</label>
-            <input id="prod-stock" type="number" min="0" value="50" class="w-full px-2.5 py-2 rounded-xl border border-slate-200 mono" />
-          </div>
-        </div>
-        <div class="pt-2 flex justify-end gap-2">
-          <button id="btn-cancel-product-modal" type="button" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs">Cancel</button>
-          <button type="submit" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm">Save &amp; Add</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL 3: INSTALL GUIDE -->
-  <div id="modal-install" class="hidden fixed inset-0 z-50 bg-slate-900/75 flex items-center justify-center p-3 no-print">
-    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-        <h3 class="font-bold text-base text-slate-900">Use as Full-Screen Phone App</h3>
-        <button id="btn-close-install-modal" type="button" class="p-1 rounded-lg text-slate-400 hover:text-slate-600">✕</button>
-      </div>
-      <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
-        <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
-          <p class="font-bold text-sm mb-1">🤖 Android (Chrome)</p>
-          <p>Tap the <strong>three-dot menu (⋮)</strong> and select <strong>"Add to Home screen"</strong> to launch full-screen like a native POS app.</p>
-        </div>
-        <div class="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900">
-          <p class="font-bold text-sm mb-1">🍎 iPhone / iPad (Safari)</p>
-          <p>Tap the <strong>Share icon</strong> at the bottom of Safari and tap <strong>"Add to Home Screen"</strong>.</p>
-        </div>
-      </div>
-      <button id="btn-got-it-install" type="button" class="w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs">Got It</button>
-    </div>
-  </div>
-
-  <!-- Toast -->
-  <div id="toast-container" class="fixed top-16 right-4 z-50 pointer-events-none transition-all duration-200 opacity-0 -translate-y-2 no-print">
-    <div class="bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg border border-slate-700 text-xs font-semibold flex items-center gap-2">
-      <span class="text-emerald-400">✓</span>
-      <span id="toast-message">Action completed</span>
-    </div>
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-16 right-4 z-50 hidden bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 text-xs font-semibold items-center gap-2 no-print">
+    <span class="text-emerald-400">✓</span>
+    <span id="toast-msg">Added to bill</span>
   </div>
 
   <script>
     (function () {
-      const STORAGE_KEY = 'quickbill_pos_mangalam_2026_v1';
-
       const defaultStore = {
         name: 'MANGALAM INFRA MACHINERY PRIVATE LIMITED',
         phone: 'Mimplsale@gmail.com | State: Rajasthan (08)',
         gstin: '08AASCM2814R1ZN',
-        upi: 'mangalaminfra@upi',
         address: 'Ground Floor, Plot No - 22, Moti Vihar, Sirsi Road, Panchyawala, Jaipur 302034',
         footer: 'for MANGALAM INFRA MACHINERY PRIVATE LIMITED — Authorised Signatory | E. & O.E.'
       };
@@ -468,102 +338,59 @@
         ["p2","MH09186","BUSH","Bearings & Bushes",499,399,18,"73072300",50],
         ["p3","MH870001754","INTEGRAL BEARING","Bearings & Bushes",2741,2193,18,"84821090",50],
         ["p4","MH40939L4","OIL FILTER","Filters & Elements",834,667,18,"84212300",50],
-        ["p5","MH785770701","OIL FILTER","Filters & Elements",144,115,18,"73181500",50],
         ["p6","MH40939O16","FUEL FILTER SEC","Filters & Elements",360,288,18,"84213990",50],
         ["p7","MH40939O15","FUEL FILTER PRIM (Mico F002H20286)","Filters & Elements",491,393,18,"84312010",50],
         ["p8","MH40939D3","OUTER AIR ELEMENT - 4445/4385","Filters & Elements",2337,1869,18,"84213990",50],
         ["p9","MH10236HKIT","FC SEAL KIT S4","Hydraulics & Seals",12694,10155,18,"40092200",50],
-        ["p10","MH785764100","HX NUT 12X1.5","Fasteners & Hardware",12,10,18,"40092200",50],
-        ["p11","MH504562100","WEAR PLUG ASSLY","Bearings & Bushes",1067,853,18,"73043119",50],
-        ["p12","MH12195","TRAIL WHEEL NUT 5/8\"-18UNF -28.5MML","Tyres, Rims & Axle",89,71,18,"73181600",50],
-        ["p14","MH40939D4","SAFETY AIR ELEMENT","Filters & Elements",1598,1278,18,"84312010",50],
+        ["p12","MH12195","TRAIL WHEEL NUT 5/8\"-18UNF","Tyres, Rims & Axle",89,71,18,"73181600",50],
         ["p16","MH511667400","Brake Shoe Assly","Brakes & Clutch",2103,1895,18,"87089400",50],
-        ["p17","MH785202301","FUEL LINE HOSE AS - 51\" L(BRAIDED HOSE)","Hydraulics & Seals",520,416,18,"40092200",50],
         ["p18","MH785393300N","TMB CLUTCH DISC ASSY","Brakes & Clutch",4075,3260,18,"87089400",50],
-        ["p21","MH16970","RADIATOR HOSE LOWER","Hydraulics & Seals",827,661,18,"40092200",50],
         ["p25","MH785765903F","BEAR CAT TYRE 6.50X10","Tyres, Rims & Axle",12832,10266,18,"40129020",50],
         ["p28","MH785765901F","BEAR CAT TYRE 7-00X12","Tyres, Rims & Axle",17693,14154,18,"40129020",50],
-        ["p29","MH511667400B","Brake Shoe Assly 29373168 (TVS Make)","Brakes & Clutch",6452,5162,18,"87089400",50],
-        ["p34","MH022066500","CLUTCH RELEASE BEARING","Bearings & Bushes",1235,988,18,"84821090",50],
         ["p35","MH026258600","CHOKE CABLE -1410 MM L","Electrical & Motors",464,371,18,"85441990",50],
-        ["p36","MH40927C11","TRANSMISSION FILTER - 80032310507","Filters & Elements",3008,2406,18,"84312010",50],
         ["p44","MH870001211","MAST CYL ASSY-7/8\"","Hydraulics & Seals",4803,3843,18,"87089400",50],
-        ["p47","MH785380801","CLUTCH COVER ASSY","Brakes & Clutch",6161,4928,18,"87089400",50],
         ["p50","MH11829","REVERSE HORN","Electrical & Motors",388,310,18,"85041090",50],
-        ["p61","MH798207174","SKF THRUST BEARING ( 51108 )","Bearings & Bushes",3783,3027,18,"84821090",50],
         ["p62","MH07DE0003","FAN BELT - S4 - LOW POS","Engine & Cooling",530,424,18,"84312010",50],
-        ["p64","MH016051600","IGNITION SWITCH (KEY SWITCH)","Electrical & Motors",561,449,18,"85365090",50],
-        ["p74","MH42323","HEAD / WORK LIGHT 55W 12vdc(HL-563)","Electrical & Motors",928,742,18,"84312010",50],
-        ["p91","MH798204054","SOLID TYRE 18\"x7\"-8\"","Tyres, Rims & Axle",13897,11117,18,"40129020",50],
-        ["p102","MH16875","ENGINE MTG R.H. (4SP)","Engine & Cooling",1450,1160,18,"84099199",50],
         ["p116","MH10135","CHAIN (118 LINKS)","Forks, Mast & Chain",4192,3353,18,"73151100",50],
-        ["p123","MH16178","HYDRAULIC PUMP 3T (SIML TO MH17913)","Hydraulics & Seals",25330,20264,18,"73043119",50],
-        ["p129","MH07912L","BEAR CAT TYRE 28 x 9 x 15 506 FC","Tyres, Rims & Axle",29602,23682,18,"40129020",50],
-        ["p155","9408393","MAINTENANCE PACKAGE 2000h-DVX FC STD","General Spares",37160,29728,18,"84312010",50],
-        ["p978","MH11134","FORK 125X45X1220 MM Class III","Forks, Mast & Chain",47344,37875,18,"84272000",50],
-        ["p3706","MH40494","MAIN WIRE HARNESS FOR DVX 1.5T/3T -AVTEC","Electrical & Motors",5735,4588,18,"84312010",50]
+        ["p123","MH16178","HYDRAULIC PUMP 3T","Hydraulics & Seals",25330,20264,18,"73043119",50],
+        ["p155","9408393","MAINTENANCE PACKAGE 2000H-DVX","General Spares",37160,29728,18,"84312010",50]
       ];
 
-      function mapCatalog() {
-        return RAW_PRICELIST_2026.map(r => ({
-          id: r[0], sku: r[1], name: r[2], category: r[3],
-          price: Number(r[4]), dealerPrice: Number(r[5]), gst: Number(r[6]), hsn: String(r[7]), stock: Number(r[8])
-        }));
-      }
-
-      let state = {
-        store: { ...defaultStore },
-        products: mapCatalog(),
-        orders: []
-      };
-
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.store) state.store = { ...defaultStore, ...parsed.store };
-          if (Array.isArray(parsed.products) && parsed.products.length) state.products = parsed.products;
-          if (Array.isArray(parsed.orders)) state.orders = parsed.orders;
-        }
-      } catch (e) {}
-
-      function saveState() {
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
-      }
+      let products = RAW_PRICELIST_2026.map(r => ({
+        id: r[0], sku: r[1], name: r[2], category: r[3],
+        price: r[4], dealerPrice: r[5], gst: r[6], hsn: r[7], stock: r[8]
+      }));
 
       let cart = [];
+      let orders = [];
       let activeCategory = 'ALL';
       let searchQuery = '';
       let selectedPayMode = 'UPI';
-      let cashTendered = '';
-      let activeOrderFilter = 'ALL';
-      let lastReceiptText = '';
+      let html5QrCode = null;
+      let isScanning = false;
 
       function showToast(msg) {
-        const t = document.getElementById('toast-container');
-        document.getElementById('toast-message').textContent = msg;
-        t.classList.remove('opacity-0', '-translate-y-2');
-        setTimeout(() => t.classList.add('opacity-0', '-translate-y-2'), 2200);
+        const t = document.getElementById('toast');
+        document.getElementById('toast-msg').textContent = msg;
+        t.classList.remove('hidden');
+        t.classList.add('flex');
+        setTimeout(() => { t.classList.add('hidden'); t.classList.remove('flex'); }, 2200);
       }
 
-      function syncStoreHeader() {
-        document.getElementById('header-store-name').textContent = state.store.name;
-        document.getElementById('set-store-name').value = state.store.name || '';
-        document.getElementById('set-store-phone').value = state.store.phone || '';
-        document.getElementById('set-store-address').value = state.store.address || '';
-        document.getElementById('set-store-gstin').value = state.store.gstin || '';
-        document.getElementById('set-store-upi').value = state.store.upi || '';
-        document.getElementById('set-receipt-footer').value = state.store.footer || '';
-      }
+      // Initialize Store Settings
+      document.getElementById('set-store-name').value = defaultStore.name;
+      document.getElementById('set-store-gstin').value = defaultStore.gstin;
+      document.getElementById('set-store-address').value = defaultStore.address;
 
       function renderCategories() {
-        const cats = ['ALL', ...new Set(state.products.map(p => p.category))];
+        const cats = ['ALL', ...new Set(products.map(p => p.category))];
         const container = document.getElementById('category-pills-container');
         container.innerHTML = cats.map(c => `
           <button type="button" data-cat="${c}" class="cat-pill px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${activeCategory === c ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}">
             ${c}
           </button>
         `).join('');
+
         container.querySelectorAll('.cat-pill').forEach(btn => {
           btn.addEventListener('click', () => {
             activeCategory = btn.dataset.cat;
@@ -575,37 +402,29 @@
 
       function renderProducts() {
         const grid = document.getElementById('pos-product-grid');
-        const q = searchQuery.trim().toLowerCase();
-        const filtered = state.products.filter(p => {
+        const filtered = products.filter(p => {
           const matchCat = activeCategory === 'ALL' || p.category === activeCategory;
+          const q = searchQuery.toLowerCase();
           const matchSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.hsn.includes(q);
           return matchCat && matchSearch;
         });
 
-        if (!filtered.length) {
-          grid.innerHTML = `<div class="col-span-full bg-white p-8 rounded-2xl border border-slate-200 text-center text-xs text-slate-400">No matching spare parts found. Use "Quick Item" to bill a custom item.</div>`;
-          return;
-        }
-
-        grid.innerHTML = filtered.map(p => {
-          const inCart = cart.find(c => c.id === p.id);
-          return `
-            <div data-id="${p.id}" class="prod-card bg-white p-3 rounded-2xl border ${inCart ? 'border-emerald-500 ring-1 ring-emerald-500/30' : 'border-slate-200'} shadow-sm hover:border-emerald-500 active:scale-[0.98] transition cursor-pointer flex flex-col justify-between gap-2">
-              <div>
-                <div class="flex items-center justify-between gap-1">
-                  <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px] mono truncate">${p.sku}</span>
-                  <span class="text-[10px] text-slate-400 mono shrink-0">${p.gst}%</span>
-                </div>
-                <h3 class="font-bold text-xs text-slate-900 mt-1.5 line-clamp-2 leading-snug">${p.name}</h3>
-                <p class="text-[10px] text-slate-400 mt-0.5 truncate">HSN: ${p.hsn} • Stock: ${p.stock}</p>
+        grid.innerHTML = filtered.map(p => `
+          <div data-id="${p.id}" class="prod-card bg-white p-3 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-500 active:scale-[0.98] transition cursor-pointer flex flex-col justify-between gap-2">
+            <div>
+              <div class="flex items-center justify-between gap-1">
+                <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px] mono">${p.sku}</span>
+                <span class="text-[10px] text-slate-400 mono">HSN: ${p.hsn}</span>
               </div>
-              <div class="flex items-center justify-between pt-2 border-t border-slate-100">
-                <span class="font-extrabold text-sm text-emerald-600 mono">₹${p.price.toLocaleString('en-IN')}</span>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${inCart ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'}">${inCart ? `×${inCart.qty}` : '+ Add'}</span>
-              </div>
+              <h3 class="font-bold text-xs text-slate-900 mt-1.5 line-clamp-2">${p.name}</h3>
+              <p class="text-[10px] text-slate-400 mt-0.5">${p.category}</p>
             </div>
-          `;
-        }).join('');
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span class="font-extrabold text-sm text-emerald-600 mono">₹${p.price.toLocaleString('en-IN')}</span>
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">+ Add</span>
+            </div>
+          </div>
+        `).join('');
 
         grid.querySelectorAll('.prod-card').forEach(card => {
           card.addEventListener('click', () => addToCart(card.dataset.id));
@@ -613,14 +432,150 @@
       }
 
       function addToCart(prodId) {
-        const prod = state.products.find(p => p.id === prodId);
+        const prod = products.find(p => p.id === prodId);
         if (!prod) return;
         const existing = cart.find(i => i.id === prodId);
-        if (existing) existing.qty += 1;
-        else cart.push({ ...prod, qty: 1 });
+        if (existing) {
+          existing.qty += 1;
+        } else {
+          cart.push({ ...prod, qty: 1 });
+        }
         renderCart();
-        renderProducts();
+        showToast(`Added ${prod.sku} to bill`);
       }
+
+      // Match Scanned Code or OCR Text against Catalog
+      function handleDetectedCode(rawCode) {
+        if (!rawCode) return;
+        const cleaned = rawCode.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+        if (!cleaned) return;
+
+        document.getElementById('scanner-last-code').textContent = cleaned;
+
+        // 1. Exact SKU match
+        const exactMatch = products.find(p => p.sku.toUpperCase().replace(/[^A-Z0-9-]/g, '') === cleaned);
+        if (exactMatch) {
+          addToCart(exactMatch.id);
+          stopCameraScanner();
+          return;
+        }
+
+        // 2. Partial SKU match
+        const partialMatch = products.find(p => p.sku.toUpperCase().includes(cleaned) || cleaned.includes(p.sku.toUpperCase()));
+        if (partialMatch && cleaned.length >= 4) {
+          addToCart(partialMatch.id);
+          stopCameraScanner();
+          return;
+        }
+
+        // 3. Fallback: Filter POS search bar with scanned code
+        const searchInput = document.getElementById('pos-search-input');
+        searchInput.value = cleaned;
+        searchQuery = cleaned;
+        document.getElementById('btn-clear-search').classList.remove('hidden');
+        renderProducts();
+        stopCameraScanner();
+        showToast(`Filtered catalog for "${cleaned}"`);
+      }
+
+      // ==================== CAMERA SCANNER ENGINE ====================
+      async function startCameraScanner() {
+        const modal = document.getElementById('modal-camera-scanner');
+        const statusText = document.getElementById('scanner-status-text');
+        modal.classList.remove('hidden');
+        statusText.textContent = 'Starting rear camera...';
+
+        try {
+          if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode('camera-reader');
+          }
+          await html5QrCode.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 250, height: 110 } },
+            (decodedText) => {
+              // Beep feedback
+              if (navigator.vibrate) navigator.vibrate(100);
+              handleDetectedCode(decodedText);
+            },
+            () => {}
+          );
+          isScanning = true;
+          statusText.textContent = 'Camera active — align barcode or tap OCR below';
+        } catch (err) {
+          statusText.textContent = 'Camera permission needed or use Photo/Gallery button';
+        }
+      }
+
+      async function stopCameraScanner() {
+        const modal = document.getElementById('modal-camera-scanner');
+        modal.classList.add('hidden');
+        if (html5QrCode && isScanning) {
+          try {
+            await html5QrCode.stop();
+          } catch (e) {}
+          isScanning = false;
+        }
+      }
+
+      // OCR Capture from live video frame
+      async function captureStickerOCR() {
+        const video = document.querySelector('#camera-reader video');
+        const statusText = document.getElementById('scanner-status-text');
+        if (!video) {
+          statusText.textContent = 'No live video found. Use Photo/Gallery button.';
+          return;
+        }
+
+        statusText.textContent = 'Reading sticker text (OCR)...';
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        await runTesseractOnSource(canvas);
+      }
+
+      async function runTesseractOnSource(imageSource) {
+        const statusText = document.getElementById('scanner-status-text');
+        try {
+          const result = await Tesseract.recognize(imageSource, 'eng');
+          const text = (result.data && result.data.text) ? result.data.text.toUpperCase() : '';
+          // Look for typical Mangalam/MH part numbers (e.g. MH02654408, 670..., 940...)
+          const partMatch = text.match(/(MH[A-Z0-9.-]{3,14}|\b\d{6,11}\b)/);
+          if (partMatch && partMatch[0]) {
+            handleDetectedCode(partMatch[0]);
+          } else {
+            const firstToken = text.trim().split(/\s+/)[0] || '';
+            if (firstToken.length >= 3) {
+              handleDetectedCode(firstToken);
+            } else {
+              statusText.textContent = 'Could not read clear part number. Try closer.';
+            }
+          }
+        } catch (err) {
+          statusText.textContent = 'OCR failed. Try typing code below.';
+        }
+      }
+
+      document.getElementById('btn-scan-barcode').addEventListener('click', startCameraScanner);
+      document.getElementById('btn-header-scan').addEventListener('click', startCameraScanner);
+      document.getElementById('btn-close-scanner').addEventListener('click', stopCameraScanner);
+      document.getElementById('btn-ocr-capture').addEventListener('click', captureStickerOCR);
+
+      // Photo Upload / Native Camera Fallback
+      document.getElementById('input-camera-photo').addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        document.getElementById('scanner-status-text').textContent = 'Scanning uploaded photo...';
+        await runTesseractOnSource(file);
+      });
+
+      // Manual Scan Input inside Scanner Modal
+      document.getElementById('btn-manual-scan-submit').addEventListener('click', () => {
+        const val = document.getElementById('manual-scan-input').value;
+        handleDetectedCode(val);
+      });
 
       function updateQty(prodId, delta) {
         const idx = cart.findIndex(i => i.id === prodId);
@@ -628,87 +583,44 @@
         cart[idx].qty += delta;
         if (cart[idx].qty <= 0) cart.splice(idx, 1);
         renderCart();
-        renderProducts();
       }
 
       function calculateTotals() {
-        const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-        const discVal = Math.max(0, parseFloat(document.getElementById('cart-discount-input').value) || 0);
+        const subtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+        const discVal = parseFloat(document.getElementById('cart-discount-input').value) || 0;
         const discType = document.getElementById('cart-discount-type').value;
-        const discount = Math.min(subtotal, discType === 'percent' ? (subtotal * discVal / 100) : discVal);
-        const taxableBase = Math.max(0, subtotal - discount);
+        const discount = discType === 'percent' ? (subtotal * (discVal / 100)) : discVal;
+        const afterDisc = Math.max(0, subtotal - discount);
         const taxMode = document.getElementById('cart-tax-mode').value;
 
         let tax = 0;
-        let grandTotal = taxableBase;
-        const avgGst = cart.length ? (cart.reduce((s, i) => s + (i.gst || 18) * i.price * i.qty, 0) / (subtotal || 1)) : 18;
-
+        let grandTotal = afterDisc;
         if (taxMode === 'exclusive') {
-          tax = taxableBase * (avgGst / 100);
-          grandTotal = taxableBase + tax;
+          tax = afterDisc * 0.18;
+          grandTotal = afterDisc + tax;
         } else if (taxMode === 'inclusive') {
-          tax = taxableBase - (taxableBase / (1 + avgGst / 100));
-          grandTotal = taxableBase;
+          tax = afterDisc - (afterDisc / 1.18);
+          grandTotal = afterDisc;
         }
         return { subtotal, discount, tax, grandTotal };
       }
 
-      function renderPaymentExtra(grandTotal) {
-        const box = document.getElementById('payment-extra-box');
-        if (selectedPayMode === 'UPI') {
-          const upiId = state.store.upi || 'mangalaminfra@upi';
-          const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(state.store.name)}&am=${grandTotal.toFixed(2)}&cu=INR`;
-          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(upiUri)}`;
-          box.innerHTML = `
-            <div class="flex items-center gap-3">
-              <img src="${qrUrl}" alt="UPI QR" class="w-16 h-16 rounded-lg border border-slate-200 shrink-0 bg-slate-50" />
-              <div class="min-w-0">
-                <p class="font-bold text-slate-800 text-xs">Scan to Pay ₹${grandTotal.toFixed(2)}</p>
-                <p class="text-[11px] text-slate-500 mono truncate">${upiId}</p>
-                <p class="text-[10px] text-emerald-600 font-semibold mt-0.5">Dynamic amount auto-filled</p>
-              </div>
-            </div>
-          `;
-        } else if (selectedPayMode === 'Cash') {
-          const tendered = parseFloat(cashTendered) || 0;
-          const change = tendered > grandTotal ? (tendered - grandTotal) : 0;
-          box.innerHTML = `
-            <div class="flex items-center justify-between gap-2">
-              <div>
-                <label class="block text-[10px] font-semibold uppercase text-slate-400">Cash Received (₹)</label>
-                <input id="cash-tender-input" type="number" min="0" value="${cashTendered}" placeholder="${grandTotal.toFixed(0)}" class="mt-0.5 w-28 px-2 py-1 rounded border border-slate-200 mono font-bold text-xs" />
-              </div>
-              <div class="text-right">
-                <span class="block text-[10px] font-semibold uppercase text-slate-400">Return Change</span>
-                <span class="font-extrabold text-sm text-emerald-600 mono">₹${change.toFixed(2)}</span>
-              </div>
-            </div>
-          `;
-          const inp = document.getElementById('cash-tender-input');
-          if (inp) inp.addEventListener('input', e => { cashTendered = e.target.value; renderPaymentExtra(grandTotal); });
-        } else if (selectedPayMode === 'Khata') {
-          box.innerHTML = `<p class="text-[11px] text-amber-800 bg-amber-50 p-1.5 rounded-lg">📒 Bill will be recorded under <strong>Customer Credit / Khata Due</strong>. Enter customer name &amp; phone above.</p>`;
-        } else {
-          box.innerHTML = `<p class="text-[11px] text-slate-500">💳 Collect ₹${grandTotal.toFixed(2)} via POS Card Swipe Machine and tap Generate Bill.</p>`;
-        }
-      }
-
       function renderCart() {
         const list = document.getElementById('cart-items-list');
+        const countBadge = document.getElementById('cart-count-badge');
         const totalItems = cart.reduce((s, i) => s + i.qty, 0);
-        document.getElementById('cart-count-badge').textContent = `${totalItems} items`;
-        document.getElementById('mobile-bar-count').textContent = totalItems;
+        countBadge.textContent = `${totalItems} items`;
 
-        if (!cart.length) {
-          list.innerHTML = `<div class="py-10 text-center text-slate-400 text-xs">Tap any part card to add to the current invoice</div>`;
+        if (cart.length === 0) {
+          list.innerHTML = `<div class="py-12 text-center text-slate-400 text-xs">Tap any spare part or use Camera Scan</div>`;
         } else {
           list.innerHTML = cart.map(item => `
             <div class="flex items-center justify-between gap-2 py-1.5">
               <div class="min-w-0 flex-1">
                 <p class="font-bold text-xs text-slate-800 truncate">${item.name}</p>
-                <p class="text-[10px] text-slate-400 mono">${item.sku} • ₹${item.price.toLocaleString('en-IN')} × ${item.qty}</p>
+                <p class="text-[10px] text-slate-400 mono">${item.sku} • ₹${item.price} × ${item.qty}</p>
               </div>
-              <div class="flex items-center gap-1 shrink-0">
+              <div class="flex items-center gap-1.5">
                 <button type="button" data-id="${item.id}" data-d="-1" class="qty-btn w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-bold text-xs">-</button>
                 <span class="w-6 text-center font-bold text-xs mono">${item.qty}</span>
                 <button type="button" data-id="${item.id}" data-d="1" class="qty-btn w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-bold text-xs">+</button>
@@ -716,8 +628,9 @@
               </div>
             </div>
           `).join('');
+
           list.querySelectorAll('.qty-btn').forEach(btn => {
-            btn.addEventListener('click', () => updateQty(btn.dataset.id, parseInt(btn.dataset.d, 10)));
+            btn.addEventListener('click', () => updateQty(btn.dataset.id, parseInt(btn.dataset.d)));
           });
         }
 
@@ -726,300 +639,130 @@
         document.getElementById('summary-discount').textContent = `-₹${t.discount.toFixed(2)}`;
         document.getElementById('summary-tax').textContent = `₹${t.tax.toFixed(2)}`;
         document.getElementById('summary-grand-total').textContent = `₹${t.grandTotal.toFixed(2)}`;
-        document.getElementById('mobile-bar-total').textContent = `₹${t.grandTotal.toFixed(2)}`;
-        renderPaymentExtra(t.grandTotal);
       }
 
-      function renderOrders() {
-        document.getElementById('nav-orders-badge').textContent = state.orders.length;
-        const totalRev = state.orders.reduce((s, o) => s + o.grandTotal, 0);
-        const upiRev = state.orders.filter(o => o.payMode === 'UPI' || o.payMode === 'Card').reduce((s, o) => s + o.grandTotal, 0);
-        const cashRev = state.orders.filter(o => o.payMode === 'Cash').reduce((s, o) => s + o.grandTotal, 0);
-        const khataRev = state.orders.filter(o => o.payMode === 'Khata').reduce((s, o) => s + o.grandTotal, 0);
-
-        document.getElementById('stat-total-revenue').textContent = `₹${totalRev.toFixed(2)}`;
-        document.getElementById('stat-total-orders').textContent = `${state.orders.length} bills generated`;
-        document.getElementById('stat-upi-total').textContent = `₹${upiRev.toFixed(2)}`;
-        document.getElementById('stat-cash-total').textContent = `₹${cashRev.toFixed(2)}`;
-        document.getElementById('stat-khata-total').textContent = `₹${khataRev.toFixed(2)}`;
-
-        const filtered = state.orders.filter(o => activeOrderFilter === 'ALL' || o.payMode === activeOrderFilter);
-        const container = document.getElementById('orders-list-container');
-        if (!filtered.length) {
-          container.innerHTML = `<div class="bg-white p-8 rounded-2xl border border-slate-200 text-center text-xs text-slate-400">No bills recorded in this category yet.</div>`;
-          return;
-        }
-        container.innerHTML = filtered.map(o => `
-          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-2">
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="font-bold text-xs text-slate-900 mono">${o.invNo}</span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${o.payMode === 'Khata' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'}">${o.payMode}</span>
-              </div>
-              <p class="text-xs text-slate-700 font-medium mt-0.5">${o.custName} ${o.custPhone ? `(${o.custPhone})` : ''}</p>
-              <p class="text-[11px] text-slate-400">${o.dateStr} • ${o.items.length} line items</p>
-            </div>
-            <p class="font-extrabold text-sm text-slate-900 mono">₹${o.grandTotal.toFixed(2)}</p>
-          </div>
-        `).join('');
-      }
-
-      function renderInventory() {
-        const container = document.getElementById('inventory-list-container');
-        container.innerHTML = state.products.map(p => `
-          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-2">
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5">
-                <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px] mono">${p.sku}</span>
-                <span class="text-[10px] text-slate-400 mono">HSN: ${p.hsn}</span>
-              </div>
-              <p class="font-bold text-xs text-slate-900 mt-1 truncate">${p.name}</p>
-              <p class="text-[11px] text-slate-400">${p.category} • GST ${p.gst}%</p>
-            </div>
-            <div class="text-right shrink-0">
-              <p class="font-extrabold text-sm text-emerald-600 mono">₹${p.price.toLocaleString('en-IN')}</p>
-              <p class="text-[11px] text-slate-500 mono">Stock: ${p.stock}</p>
-            </div>
-          </div>
-        `).join('');
-      }
-
-      // Search & Barcode
       const searchInput = document.getElementById('pos-search-input');
-      const clearSearchBtn = document.getElementById('btn-clear-search');
-      searchInput.addEventListener('input', e => {
+      const clearBtn = document.getElementById('btn-clear-search');
+      searchInput.addEventListener('input', (e) => {
         searchQuery = e.target.value;
-        clearSearchBtn.classList.toggle('hidden', !searchQuery);
+        clearBtn.classList.toggle('hidden', !searchQuery);
         renderProducts();
       });
-      clearSearchBtn.addEventListener('click', () => {
+      clearBtn.addEventListener('click', () => {
         searchInput.value = '';
         searchQuery = '';
-        clearSearchBtn.classList.add('hidden');
+        clearBtn.classList.add('hidden');
         renderProducts();
       });
-      document.getElementById('btn-scan-barcode').addEventListener('click', () => {
-        const code = prompt('Scan or enter Part Number / SKU (e.g. MH02654408):');
-        if (!code) return;
-        const found = state.products.find(p => p.sku.toLowerCase() === code.trim().toLowerCase());
-        if (found) {
-          addToCart(found.id);
-          showToast(`Added ${found.sku}`);
-        } else {
-          searchInput.value = code.trim();
-          searchQuery = code.trim();
-          renderProducts();
-          showToast('Filtered by scanned code');
-        }
-      });
 
-      // Cart Controls
       document.getElementById('cart-discount-input').addEventListener('input', renderCart);
       document.getElementById('cart-discount-type').addEventListener('change', renderCart);
       document.getElementById('cart-tax-mode').addEventListener('change', renderCart);
-      document.getElementById('btn-clear-cart').addEventListener('click', () => { cart = []; renderCart(); renderProducts(); });
+      document.getElementById('btn-clear-cart').addEventListener('click', () => { cart = []; renderCart(); });
 
       document.querySelectorAll('.pay-mode-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           selectedPayMode = btn.dataset.pay;
           document.querySelectorAll('.pay-mode-btn').forEach(b => {
-            b.className = 'pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold transition bg-white border-slate-200 text-slate-600 hover:bg-slate-100';
+            b.className = 'pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold bg-white border-slate-200 text-slate-600';
           });
-          btn.className = 'pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold transition bg-emerald-50 border-emerald-500 text-emerald-800';
-          renderCart();
+          btn.className = 'pay-mode-btn py-2 px-1 rounded-lg border text-xs font-bold bg-emerald-50 border-emerald-500 text-emerald-800';
         });
       });
 
-      // Mobile Cart Drawer Toggle
-      const cartWrapper = document.getElementById('cart-panel-wrapper');
-      document.getElementById('btn-open-mobile-cart').addEventListener('click', () => {
-        cartWrapper.classList.remove('hidden');
-        cartWrapper.classList.add('fixed', 'inset-0', 'z-40', 'bg-slate-900/70', 'p-3', 'overflow-y-auto');
-      });
-      function closeMobileCart() {
-        cartWrapper.classList.add('hidden');
-        cartWrapper.classList.remove('fixed', 'inset-0', 'z-40', 'bg-slate-900/70', 'p-3', 'overflow-y-auto');
-      }
-      document.getElementById('btn-close-mobile-cart').addEventListener('click', closeMobileCart);
-
-      // Complete Sale
       document.getElementById('btn-complete-sale').addEventListener('click', () => {
-        if (!cart.length) return showToast('Add at least 1 item to generate bill');
+        if (cart.length === 0) return alert('Please add items to the bill first.');
         const t = calculateTotals();
-        const custName = document.getElementById('cart-customer-name').value.trim() || 'Walk-in Customer';
-        const custPhone = document.getElementById('cart-customer-phone').value.trim();
-        const invNo = 'MIMPL-' + String(1001 + state.orders.length);
+        const custName = document.getElementById('cart-customer-name').value || 'Walk-in Client';
+        const custPhone = document.getElementById('cart-customer-phone').value || '-';
+        const invNo = 'MIMPL-' + Math.floor(100000 + Math.random() * 900000);
         const dateStr = new Date().toLocaleString('en-IN');
 
-        cart.forEach(item => {
-          const p = state.products.find(x => x.id === item.id);
-          if (p) p.stock = Math.max(0, p.stock - item.qty);
-        });
+        const order = { invNo, dateStr, custName, custPhone, items: [...cart], ...t, payMode: selectedPayMode };
+        orders.unshift(order);
+        document.getElementById('nav-orders-badge').textContent = orders.length;
 
-        const order = { invNo, dateStr, custName, custPhone, payMode: selectedPayMode, items: [...cart], ...t };
-        state.orders.unshift(order);
-        saveState();
-
-        document.getElementById('printable-receipt').innerHTML = `
+        const receiptEl = document.getElementById('printable-receipt');
+        receiptEl.innerHTML = `
           <div class="text-center border-b border-dashed border-slate-300 pb-2">
-            <p class="font-extrabold text-xs sm:text-sm">${state.store.name}</p>
-            <p class="text-[10px] text-slate-600 mt-0.5">${state.store.address}</p>
-            <p class="text-[10px] font-bold mt-0.5">GSTIN: ${state.store.gstin}</p>
+            <p class="font-extrabold text-sm">${defaultStore.name}</p>
+            <p class="text-[10px] text-slate-600">${defaultStore.address}</p>
+            <p class="text-[10px] font-bold mt-0.5">GSTIN: ${defaultStore.gstin}</p>
           </div>
           <div class="py-1.5 border-b border-dashed border-slate-300 text-[11px] space-y-0.5">
             <div class="flex justify-between"><span>Inv: <b>${invNo}</b></span><span>${dateStr}</span></div>
-            <div class="flex justify-between"><span>Party: ${custName}</span><span>Pay: <b>${selectedPayMode}</b></span></div>
+            <div class="flex justify-between"><span>Party: ${custName}</span><span>Mode: <b>${selectedPayMode}</b></span></div>
           </div>
           <div class="py-1.5 border-b border-dashed border-slate-300 space-y-1">
             ${order.items.map(i => `
-              <div class="text-[11px]">
-                <div class="flex justify-between font-semibold"><span>${i.sku} (HSN:${i.hsn})</span><span>₹${(i.price * i.qty).toFixed(2)}</span></div>
-                <div class="text-[10px] text-slate-500">${i.name} — ₹${i.price} × ${i.qty}</div>
+              <div class="flex justify-between text-[11px]">
+                <span class="truncate pr-2">${i.sku} - ${i.name} (x${i.qty})</span>
+                <span class="font-bold">₹${(i.price * i.qty).toFixed(2)}</span>
               </div>
             `).join('')}
           </div>
           <div class="space-y-1 text-[11px] pt-1">
             <div class="flex justify-between"><span>Subtotal:</span><span>₹${t.subtotal.toFixed(2)}</span></div>
             <div class="flex justify-between"><span>Discount:</span><span>-₹${t.discount.toFixed(2)}</span></div>
-            <div class="flex justify-between"><span>GST (CGST+SGST):</span><span>₹${t.tax.toFixed(2)}</span></div>
+            <div class="flex justify-between"><span>GST (18%):</span><span>₹${t.tax.toFixed(2)}</span></div>
             <div class="flex justify-between font-extrabold text-sm border-t border-slate-300 pt-1">
               <span>GRAND TOTAL:</span><span>₹${t.grandTotal.toFixed(2)}</span>
             </div>
           </div>
-          <p class="text-[10px] text-center text-slate-500 pt-2 border-t border-dashed border-slate-300">${state.store.footer}</p>
+          <p class="text-[10px] text-center text-slate-500 pt-2 border-t border-dashed border-slate-300">${defaultStore.footer}</p>
         `;
 
-        lastReceiptText = `*${state.store.name}*\nGSTIN: ${state.store.gstin}\nInvoice: ${invNo} | ${dateStr}\nCustomer: ${custName}\n----------------\n` +
-          order.items.map(i => `• ${i.sku} ${i.name} (x${i.qty}) = ₹${(i.price * i.qty).toFixed(2)}`).join('\n') +
-          `\n----------------\nGST: ₹${t.tax.toFixed(2)}\n*Grand Total: ₹${t.grandTotal.toFixed(2)}* (${selectedPayMode})`;
-
-        closeMobileCart();
         document.getElementById('modal-receipt').classList.remove('hidden');
         cart = [];
-        cashTendered = '';
-        document.getElementById('cart-customer-name').value = '';
-        document.getElementById('cart-customer-phone').value = '';
         renderCart();
-        renderProducts();
         renderOrders();
-        renderInventory();
       });
 
-      document.getElementById('btn-close-receipt-modal').addEventListener('click', () => document.getElementById('modal-receipt').classList.add('hidden'));
-      document.getElementById('btn-new-sale-after-receipt').addEventListener('click', () => document.getElementById('modal-receipt').classList.add('hidden'));
+      document.getElementById('btn-close-receipt-modal').addEventListener('click', () => {
+        document.getElementById('modal-receipt').classList.add('hidden');
+      });
       document.getElementById('btn-print-receipt').addEventListener('click', () => window.print());
-      document.getElementById('btn-share-whatsapp').addEventListener('click', () => {
-        navigator.clipboard?.writeText(lastReceiptText);
-        showToast('Formatted invoice copied for WhatsApp!');
-      });
 
-      // Quick Item & Add Product Modal
-      const prodModal = document.getElementById('modal-product');
-      document.getElementById('btn-open-custom-item').addEventListener('click', () => {
-        document.getElementById('prod-mode').value = 'quick';
-        document.getElementById('modal-product-title').textContent = 'Quick Custom Bill Item';
-        document.getElementById('prod-sku').value = 'CUSTOM-' + Math.floor(100 + Math.random() * 900);
-        prodModal.classList.remove('hidden');
-      });
-      document.getElementById('btn-open-add-product').addEventListener('click', () => {
-        document.getElementById('prod-mode').value = 'catalog';
-        document.getElementById('modal-product-title').textContent = 'Add New Spare Part to Catalog';
-        document.getElementById('prod-sku').value = '';
-        prodModal.classList.remove('hidden');
-      });
-      document.getElementById('btn-close-product-modal').addEventListener('click', () => prodModal.classList.add('hidden'));
-      document.getElementById('btn-cancel-product-modal').addEventListener('click', () => prodModal.classList.add('hidden'));
+      function renderOrders() {
+        const rev = orders.reduce((s, o) => s + o.grandTotal, 0);
+        document.getElementById('stat-total-revenue').textContent = `₹${rev.toFixed(2)}`;
+        document.getElementById('stat-total-orders').textContent = orders.length;
 
-      document.getElementById('form-product').addEventListener('submit', e => {
-        e.preventDefault();
-        const mode = document.getElementById('prod-mode').value;
-        const newItem = {
-          id: 'p_' + Date.now(),
-          sku: document.getElementById('prod-sku').value.trim().toUpperCase(),
-          hsn: document.getElementById('prod-hsn').value.trim() || '84312010',
-          name: document.getElementById('prod-name').value.trim(),
-          price: parseFloat(document.getElementById('prod-price').value) || 0,
-          gst: parseFloat(document.getElementById('prod-gst').value) || 18,
-          category: document.getElementById('prod-category').value,
-          stock: parseInt(document.getElementById('prod-stock').value, 10) || 50
-        };
-        state.products.unshift(newItem);
-        saveState();
-        if (mode === 'quick') addToCart(newItem.id);
-        renderCategories();
-        renderProducts();
-        renderInventory();
-        e.target.reset();
-        prodModal.classList.add('hidden');
-        showToast('Item saved & ready');
-      });
+        const container = document.getElementById('orders-list-container');
+        container.innerHTML = orders.map(o => `
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between">
+            <div>
+              <p class="font-bold text-xs">${o.invNo} — ${o.custName}</p>
+              <p class="text-[11px] text-slate-400">${o.dateStr} • ${o.items.length} items • ${o.payMode}</p>
+            </div>
+            <p class="font-extrabold text-sm text-emerald-600 mono">₹${o.grandTotal.toFixed(2)}</p>
+          </div>
+        `).join('');
+      }
 
-      // Orders Filter & CSV Export
-      document.querySelectorAll('.order-filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          activeOrderFilter = btn.dataset.orderFilter;
-          document.querySelectorAll('.order-filter-btn').forEach(b => {
-            b.className = 'order-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200';
-          });
-          btn.className = 'order-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white';
-          renderOrders();
-        });
-      });
+      function renderInventory() {
+        const container = document.getElementById('inventory-list-container');
+        container.innerHTML = products.map(p => `
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 flex justify-between items-center">
+            <div>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 mono">${p.sku}</span>
+              <p class="font-bold text-xs mt-1">${p.name}</p>
+              <p class="text-[10px] text-slate-400">HSN: ${p.hsn} | Dealer: ₹${p.dealerPrice}</p>
+            </div>
+            <div class="text-right">
+              <p class="font-extrabold text-sm text-emerald-600 mono">₹${p.price}</p>
+              <p class="text-[10px] text-slate-400">Stock: ${p.stock}</p>
+            </div>
+          </div>
+        `).join('');
+      }
 
-      document.getElementById('btn-export-orders-csv').addEventListener('click', () => {
-        if (!state.orders.length) return showToast('No bills to export yet');
-        const rows = [['Invoice', 'Date', 'Customer', 'Phone', 'PaymentMode', 'Subtotal', 'Discount', 'GST', 'GrandTotal']];
-        state.orders.forEach(o => rows.push([o.invNo, `"${o.dateStr}"`, `"${o.custName}"`, o.custPhone, o.payMode, o.subtotal.toFixed(2), o.discount.toFixed(2), o.tax.toFixed(2), o.grandTotal.toFixed(2)]));
-        const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `Mangalam_POS_Bills_${new Date().toISOString().slice(0,10)}.csv`;
-        a.click();
-      });
-
-      // Store Settings & Reset
-      document.getElementById('form-store-settings').addEventListener('submit', e => {
-        e.preventDefault();
-        state.store.name = document.getElementById('set-store-name').value.trim();
-        state.store.phone = document.getElementById('set-store-phone').value.trim();
-        state.store.address = document.getElementById('set-store-address').value.trim();
-        state.store.gstin = document.getElementById('set-store-gstin').value.trim();
-        state.store.upi = document.getElementById('set-store-upi').value.trim();
-        state.store.footer = document.getElementById('set-receipt-footer').value.trim();
-        saveState();
-        syncStoreHeader();
-        renderCart();
-        showToast('Store settings saved!');
-      });
-
-      document.getElementById('btn-reset-demo-data').addEventListener('click', () => {
-        if (!confirm('Reset catalog and clear saved bills?')) return;
-        localStorage.removeItem(STORAGE_KEY);
-        state = { store: { ...defaultStore }, products: mapCatalog(), orders: [] };
-        cart = [];
-        syncStoreHeader();
-        renderCategories();
-        renderProducts();
-        renderCart();
-        renderOrders();
-        renderInventory();
-        showToast('Demo data reset');
-      });
-
-      // Install Modal
-      const installModal = document.getElementById('modal-install');
-      document.getElementById('btn-open-install-guide').addEventListener('click', () => installModal.classList.remove('hidden'));
-      document.getElementById('btn-close-install-modal').addEventListener('click', () => installModal.classList.add('hidden'));
-      document.getElementById('btn-got-it-install').addEventListener('click', () => installModal.classList.add('hidden'));
-
-      // Navigation Tabs
       document.querySelectorAll('.nav-tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const tab = btn.dataset.tab;
           ['pos', 'orders', 'inventory', 'settings'].forEach(t => {
             document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
           });
-          document.getElementById('mobile-bottom-cart-bar').classList.toggle('hidden', tab !== 'pos');
           document.querySelectorAll('.nav-tab-btn').forEach(b => {
             b.className = 'nav-tab-btn flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-300 hover:text-white hover:bg-slate-700/60';
           });
@@ -1027,11 +770,9 @@
         });
       });
 
-      syncStoreHeader();
       renderCategories();
       renderProducts();
       renderCart();
-      renderOrders();
       renderInventory();
     })();
   </script>
